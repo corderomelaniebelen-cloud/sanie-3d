@@ -1,0 +1,269 @@
+rules_version = '2';
+
+// ============================================================================
+// Assumed Data Model — Sanie 3D (Project: sanie-31158, Database: (default))
+// ============================================================================
+//
+// Collection: admins
+// Document ID: {uid} (Firebase Auth UID)
+// Access: Self-get (to check admin status) or admin read/write.
+// Fields (optional metadata; document existence grants admin role):
+//   - uid: string (optional, must match {uid})
+//   - email: string (optional, 0..200 chars)
+//   - name: string (optional, 0..120 chars)
+//   - displayName: string (optional, 0..120 chars)
+//   - role: string (optional, 0..40 chars)
+//   - note: string (optional, 0..500 chars)
+//   - active: bool (optional)
+//   - addedBy: string (optional, 0..200 chars)
+//   - createdBy: string (optional, 0..200 chars)
+//   - createdAt: timestamp (optional; immutable if present on update)
+//   - updatedAt: timestamp (optional)
+//
+// Collection: catalog
+// Document ID: {productId}
+// Access: Public read for active == true products only; full read/write for admins.
+// Exact Fields:
+//   - name: string (required, 1..120 chars)
+//   - category: string (required, 1..50 chars)
+//   - description: string (required, 0..1000 chars)
+//   - material: string (required, 0..80 chars)
+//   - price: number (int | float, required, 0..10000000)
+//   - leadTimeDays: number (int | float, required, 0..365)
+//   - badge: string (required, 0..40 chars)
+//   - imageUrl: string (required, 0..500 chars)
+//   - iconKey: string (required, 0..40 chars)
+//   - active: bool (required)
+//   - sortOrder: number (int | float, required, 0..100000)
+//   - createdAt: timestamp (required, == request.time on create, immutable on update)
+//   - updatedAt: timestamp (required, == request.time on create & update)
+//
+// Collection: orders
+// Document ID: {orderId}
+// Access: Public create for validated 'Pending' web orders only (write-only for
+//         public to protect client PII); get, list, update, delete are admin-only.
+// Exact Fields:
+//   - date: string (required, 0..10 chars, "" or YYYY-MM-DD in 2000-2099)
+//   - product: string (required, 1..140 public / 0..140 admin; product or client non-empty for admin)
+//   - description: string (required, 0..1000 chars)
+//   - status: string (required, 'Pending' public / ['Pending','Processing','Ready','Delivered'] admin)
+//   - price: number (int | float, required, 0..10000000)
+//   - quantity: number (int | float, required, 1..500 public / 0..10000 admin)
+//   - client: string (required, 1..100 public / 0..100 admin)
+//   - contact: string (required, 1..120 public / 0..120 admin)
+//   - source: string (required, 'web' public / ['web','admin'] admin, immutable on update)
+//   - catalogId: string (required, 0..120 chars)
+//   - createdAt: timestamp (required, == request.time on create, immutable on update)
+//   - updatedAt: timestamp (required, == request.time on create & update)
+//
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================================================================
+    // Helper Functions
+    // ========================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function isBootstrapAdmin() {
+      return isAuthenticated() &&
+        'email' in request.auth.token &&
+        request.auth.token.email == 'corderomelaniebelen@gmail.com' &&
+        'email_verified' in request.auth.token &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        isBootstrapAdmin() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasExactFields(fields) {
+      return hasRequiredFields(fields) && hasOnlyAllowedFields(fields);
+    }
+
+    function isStringInRange(val, minLen, maxLen) {
+      return val is string &&
+        val.size() >= minLen &&
+        val.size() <= maxLen;
+    }
+
+    function isNumberInRange(val, minVal, maxVal) {
+      return (val is int || val is float) &&
+        val >= minVal &&
+        val <= maxVal;
+    }
+
+    function isSafeImageUrl(url) {
+      return isStringInRange(url, 0, 500) &&
+        (url == "" || !url.matches("(?is)^\\s*(javascript|vbscript|data:text/html):.*"));
+    }
+
+    function isValidOrderDate(dateStr) {
+      return isStringInRange(dateStr, 0, 10) &&
+        dateStr.matches("^$|^20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$");
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // ========================================================================
+    // Domain Validators (Applied on both create and update)
+    // ========================================================================
+
+    function validAdminDoc(uid, isCreate) {
+      let d = request.resource.data;
+      return isStringInRange(uid, 1, 128) &&
+        d is map &&
+        d.keys().size() <= 16 &&
+        (!('uid' in d) || (d.uid is string && d.uid == uid)) &&
+        (!('email' in d) || isStringInRange(d.email, 0, 200)) &&
+        (!('name' in d) || isStringInRange(d.name, 0, 120)) &&
+        (!('displayName' in d) || isStringInRange(d.displayName, 0, 120)) &&
+        (!('role' in d) || isStringInRange(d.role, 0, 40)) &&
+        (!('note' in d) || isStringInRange(d.note, 0, 500)) &&
+        (!('active' in d) || d.active is bool) &&
+        (!('addedBy' in d) || isStringInRange(d.addedBy, 0, 200)) &&
+        (!('createdBy' in d) || isStringInRange(d.createdBy, 0, 200)) &&
+        (!('createdAt' in d) || d.createdAt is timestamp) &&
+        (!('updatedAt' in d) || d.updatedAt is timestamp) &&
+        (isCreate ||
+          (resource != null &&
+           (!('createdAt' in resource.data) ||
+            (('createdAt' in d) && d.createdAt == resource.data.createdAt))));
+    }
+
+    function validCatalogDoc(isCreate) {
+      let d = request.resource.data;
+      let keys = [
+        'name', 'category', 'description', 'material', 'price',
+        'leadTimeDays', 'badge', 'imageUrl', 'iconKey', 'active',
+        'sortOrder', 'createdAt', 'updatedAt'
+      ];
+      return hasExactFields(keys) &&
+        isStringInRange(d.name, 1, 120) &&
+        isStringInRange(d.category, 1, 50) &&
+        isStringInRange(d.description, 0, 1000) &&
+        isStringInRange(d.material, 0, 80) &&
+        isNumberInRange(d.price, 0, 10000000) &&
+        isNumberInRange(d.leadTimeDays, 0, 365) &&
+        isStringInRange(d.badge, 0, 40) &&
+        isSafeImageUrl(d.imageUrl) &&
+        isStringInRange(d.iconKey, 0, 40) &&
+        d.active is bool &&
+        isNumberInRange(d.sortOrder, 0, 100000) &&
+        d.createdAt is timestamp &&
+        d.updatedAt is timestamp &&
+        d.updatedAt == request.time &&
+        ((isCreate && d.createdAt == request.time) ||
+         (!isCreate &&
+          resource != null &&
+          areImmutableFieldsUnchanged(['createdAt']) &&
+          d.createdAt == resource.data.createdAt));
+    }
+
+    function hasExactOrderKeys() {
+      return hasExactFields([
+        'date', 'product', 'description', 'status', 'price', 'quantity',
+        'client', 'contact', 'source', 'catalogId', 'createdAt', 'updatedAt'
+      ]);
+    }
+
+    function validPublicOrderCreate() {
+      let d = request.resource.data;
+      return hasExactOrderKeys() &&
+        isValidOrderDate(d.date) &&
+        isStringInRange(d.product, 1, 140) &&
+        isStringInRange(d.description, 0, 1000) &&
+        d.status is string && d.status == 'Pending' &&
+        isNumberInRange(d.price, 0, 10000000) &&
+        isNumberInRange(d.quantity, 1, 500) &&
+        isStringInRange(d.client, 1, 100) &&
+        isStringInRange(d.contact, 1, 120) &&
+        d.source is string && d.source == 'web' &&
+        isStringInRange(d.catalogId, 0, 120) &&
+        d.createdAt is timestamp && d.createdAt == request.time &&
+        d.updatedAt is timestamp && d.updatedAt == request.time;
+    }
+
+    function validAdminOrder(isCreate) {
+      let d = request.resource.data;
+      return hasExactOrderKeys() &&
+        isValidOrderDate(d.date) &&
+        isStringInRange(d.product, 0, 140) &&
+        isStringInRange(d.description, 0, 1000) &&
+        isStringInRange(d.client, 0, 100) &&
+        (d.product.size() > 0 || d.client.size() > 0) &&
+        d.status is string &&
+        d.status in ['Pending', 'Processing', 'Ready', 'Delivered'] &&
+        isNumberInRange(d.price, 0, 10000000) &&
+        isNumberInRange(d.quantity, 0, 10000) &&
+        isStringInRange(d.contact, 0, 120) &&
+        d.source is string && d.source in ['web', 'admin'] &&
+        isStringInRange(d.catalogId, 0, 120) &&
+        d.createdAt is timestamp &&
+        d.updatedAt is timestamp &&
+        d.updatedAt == request.time &&
+        ((isCreate && d.createdAt == request.time) ||
+         (!isCreate &&
+          resource != null &&
+          areImmutableFieldsUnchanged(['createdAt', 'source']) &&
+          d.createdAt == resource.data.createdAt &&
+          d.source == resource.data.source));
+    }
+
+    // ========================================================================
+    // Collection Rules
+    // ========================================================================
+
+    match /admins/{uid} {
+      allow get: if isAuthenticated() && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin() && validAdminDoc(uid, true);
+      allow update: if isAdmin() && validAdminDoc(uid, false);
+      allow delete: if isAdmin();
+    }
+
+    match /catalog/{productId} {
+      allow get: if isAdmin() || (resource != null && resource.data.active == true);
+      allow list: if isAdmin() || resource.data.active == true;
+      allow create: if isAdmin() && validCatalogDoc(true);
+      allow update: if isAdmin() && validCatalogDoc(false);
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow get, list: if isAdmin();
+      allow create: if (isAdmin() && validAdminOrder(true)) || validPublicOrderCreate();
+      allow update: if isAdmin() && validAdminOrder(false);
+      allow delete: if isAdmin();
+    }
+
+    // ========================================================================
+    // Default Deny Fallback
+    // ========================================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

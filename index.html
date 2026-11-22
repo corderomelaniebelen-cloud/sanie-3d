@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sanie 3D — Estudio de Impresión 3D y Diseños Personalizados</title>
+  <meta name="description" content="Mates personalizados, ajedrez temáticos, llaveros y piezas a medida impresas en 3D con terminación de estudio." />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2318181b'%3E%3Crect width='24' height='24' rx='6'/%3E%3Cpolygon points='12,4 19,8 19,16 12,20 5,16 5,8' fill='none' stroke='%23ffffff' stroke-width='1.8'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="./" class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+            <polygon points="12 2 21 7 21 17 12 22 3 17 3 7 12 2"/>
+            <polyline points="3 7 12 12 21 7"/>
+            <line x1="12" y1="12" x2="12" y2="22"/>
+          </svg>
+        </span>
+        <span>
+          SANIE 3D
+          <span class="brand-sub">Taller de Impresión 3D</span>
+        </span>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#catalogo">Catálogo</a>
+        <a href="#medida">A medida</a>
+        <a href="#proceso">Cómo trabajamos</a>
+      </nav>
+
+      <div class="header-actions">
+        <button id="btnCustomHeroNav" class="btn btn-outline btn-sm" type="button">Cotizar a medida</button>
+        <a href="./admin.html" class="btn btn-primary btn-sm">Panel Admin</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <span class="eyebrow">
+            <span class="eyebrow-dot"></span>
+            Impresión 3D en PLA+ y PETG · Producción a pedido
+          </span>
+          <h1>Objetos únicos impresos capa por capa con precisión de taller.</h1>
+          <p>
+            Mates personalizados, juegos de tablero, accesorios y piezas a medida pensadas para durar.
+            Elegí un diseño del catálogo o mandanos tu idea para cotizar.
+          </p>
+          <div class="hero-ctas">
+            <a href="#catalogo" class="btn btn-primary">Ver catálogo</a>
+            <button id="btnCustomHero" class="btn btn-accent" type="button">Encargar a medida</button>
+          </div>
+          <div class="hero-specs">
+            <div class="spec-item">
+              <strong>Personalización real</strong>
+              <span>Colores de tu equipo, nombres y logos</span>
+            </div>
+            <div class="spec-item">
+              <strong>Materiales seleccionados</strong>
+              <span>PLA+ de alta resistencia y PETG técnico</span>
+            </div>
+            <div class="spec-item">
+              <strong>Seguimiento directo</strong>
+              <span>Cargás tu pedido y entra directo al taller</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-card">
+          <div class="hero-card-visual" id="heroIllustration"></div>
+          <div class="hero-card-meta">
+            <div>
+              <strong>Pieza destacada · Mate Motor</strong>
+              <span class="contact-sub">Colores personalizables · Interior térmico lavable</span>
+            </div>
+            <span class="mono" style="font-weight:700;color:var(--accent);">$ 18.500</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="catalogo" class="section">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Catálogo del taller</h2>
+            <p class="section-subtitle">Elegí producto, cantidad y personalización. Tu pedido se registra al instante.</p>
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <div class="pill-group" id="categoryPills">
+            <button type="button" class="pill-btn active" data-category="Todos">Todos</button>
+            <button type="button" class="pill-btn" data-category="Mates">Mates</button>
+            <button type="button" class="pill-btn" data-category="Juegos">Juegos</button>
+            <button type="button" class="pill-btn" data-category="A medida">A medida</button>
+          </div>
+          <div class="search-input-wrap">
+            <input id="catalogSearch" class="input" type="search" placeholder="Buscar mate, ajedrez, pieza..." />
+          </div>
+        </div>
+
+        <div id="catalogNotice" class="banner hidden"></div>
+        <div id="catalogGrid" class="catalog-grid"></div>
+      </div>
+    </section>
+
+    <section id="medida" class="section" style="padding-top: 8px;">
+      <div class="container">
+        <div class="studio-banner">
+          <div>
+            <h2 class="section-title" style="font-size: 1.35rem;">¿Tenés un archivo STL o querés una pieza especial?</h2>
+            <p class="section-subtitle">
+              Imprimimos prototipos, soportes, llaveros por cantidad para eventos y regalos personalizados.
+            </p>
+          </div>
+          <button id="btnCustomBanner" class="btn btn-accent" type="button">Pedir cotización</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="proceso" class="section" style="padding-top: 12px;">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Cómo trabajamos</h2>
+            <p class="section-subtitle">Del diseño a tus manos en tres pasos simples.</p>
+          </div>
+        </div>
+        <div class="steps-grid">
+          <article class="step-card">
+            <span class="step-num">1</span>
+            <h3>Elegís o encargás</h3>
+            <p>Seleccionás un diseño del catálogo o cargás tu pedido personalizado con colores, cantidad y fecha estimada.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-num">2</span>
+            <h3>Impresión y control</h3>
+            <p>Tu pedido pasa a estado Processing en nuestro tablero de taller, cuidando terminaciones y tolerancias.</p>
+          </article>
+          <article class="step-card">
+            <span class="step-num">3</span>
+            <h3>Listo para entregar</h3>
+            <p>Cuando figura como Ready, coordinamos el retiro o envío según tu contacto de WhatsApp o Instagram.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <span><strong>Sanie 3D</strong> · Impresión 3D y Diseño a Pedido</span>
+      <span><a href="./admin.html">Acceso Taller / Admin</a></span>
+    </div>
+  </footer>
+
+  <!-- Modal de Pedido Público -->
+  <div id="orderModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <h2 id="orderModalTitle">Encargar producto</h2>
+        <button id="closeOrderModal" class="modal-close" type="button" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="publicOrderForm" class="form-grid">
+          <input type="text" id="hpWebsite" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;opacity:0;" aria-hidden="true" />
+          <input type="hidden" id="orderCatalogId" />
+          <input type="hidden" id="orderUnitPrice" value="0" />
+
+          <div class="field">
+            <label for="orderProduct">Producto / Trabajo</label>
+            <input id="orderProduct" class="input" type="text" maxlength="140" required />
+          </div>
+
+          <div class="form-row-2">
+            <div class="field">
+              <label>Cantidad</label>
+              <div class="qty-stepper">
+                <button type="button" id="qtyMinus" aria-label="Restar cantidad">−</button>
+                <input id="orderQty" type="number" min="1" max="500" step="1" value="1" required />
+                <button type="button" id="qtyPlus" aria-label="Sumar cantidad">+</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="orderDate">Fecha deseada (opcional)</label>
+              <input id="orderDate" class="input" type="date" />
+            </div>
+          </div>
+
+          <div class="total-preview-box">
+            <span id="orderPriceBreakdown">Precio unitario: A cotizar</span>
+            <strong id="orderTotalDisplay">A cotizar</strong>
+          </div>
+
+          <div class="field">
+            <label for="orderDesc">Colores, medidas o personalización</label>
+            <textarea id="orderDesc" class="textarea" maxlength="1000" placeholder="Ej: Color azul y oro (Boca), nombre grabado, etc."></textarea>
+          </div>
+
+          <div class="form-row-2">
+            <div class="field">
+              <label for="orderClient">Tu nombre</label>
+              <input id="orderClient" class="input" type="text" maxlength="100" required placeholder="Ej: Lucas" />
+            </div>
+            <div class="field">
+              <label for="orderContact">WhatsApp o Instagram</label>
+              <input id="orderContact" class="input" type="text" maxlength="120" required placeholder="Ej: 11 5555-4444 / @usuario" />
+            </div>
+          </div>
+
+          <div class="modal-foot">
+            <button type="button" id="cancelOrderModal" class="btn btn-outline">Cancelar</button>
+            <button type="submit" id="submitPublicOrder" class="btn btn-accent">Enviar pedido</button>
+          </div>
+        </form>
+
+        <div id="orderSuccessView" class="hidden" style="text-align:center; padding: 14px 6px;">
+          <div style="width:48px;height:48px;margin:0 auto 12px;border-radius:50%;background:var(--delivered-bg);color:var(--delivered-ink);display:grid;place-items:center;font-size:1.3rem;font-weight:700;">✓</div>
+          <h3 style="margin:0 0 8px;">¡Pedido enviado al taller!</h3>
+          <p id="orderSuccessSummary" style="margin:0 0 18px;color:var(--ink-muted);font-size:0.93rem;"></p>
+          <button type="button" id="btnNewAfterSuccess" class="btn btn-primary">Volver al catálogo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script type="module" src="./js/store.js"></script>
+</body>
+</html>
