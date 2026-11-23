@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Historial de Entregados — Sanie 3D</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2318181b'%3E%3Crect width='24' height='24' rx='6'/%3E%3Cpolygon points='12,4 19,8 19,16 12,20 5,16 5,8' fill='none' stroke='%23ffffff' stroke-width='1.8'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container-wide header-inner">
+      <a href="./" class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+            <polygon points="12 2 21 7 21 17 12 22 3 17 3 7 12 2"/>
+            <polyline points="3 7 12 12 21 7"/>
+            <line x1="12" y1="12" x2="12" y2="22"/>
+          </svg>
+        </span>
+        <span>
+          SANIE 3D
+          <span class="brand-sub">Historial de Entregados</span>
+        </span>
+      </a>
+
+      <div class="header-actions">
+        <span id="adminUserEmail" class="mono" style="font-size:0.8rem;color:var(--ink-muted);"></span>
+        <a href="./admin.html" class="btn btn-primary btn-sm">← Pedidos Activos</a>
+        <a href="./" class="btn btn-outline btn-sm">Ver tienda pública</a>
+        <button id="btnSignOut" class="btn btn-ghost btn-sm hidden" type="button">Cerrar sesión</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Pantalla de Login -->
+  <section id="authSection" class="auth-wrapper">
+    <div class="auth-card">
+      <h1>Historial de pedidos</h1>
+      <p>Iniciá sesión con tu cuenta administradora de Firebase para consultar los pedidos ya entregados.</p>
+
+      <div id="authErrorBox" class="banner banner-error hidden" style="margin-bottom:14px;"></div>
+
+      <button id="btnGoogleSignIn" class="btn btn-primary" style="width:100%;" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="#fff" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27 3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10 5.35 0 9.25-3.67 9.25-9.09 0-1.15-.15-1.81-.15-1.81z"/>
+        </svg>
+        Continuar con Google
+      </button>
+
+      <div class="divider">o con correo y contraseña</div>
+
+      <form id="emailLoginForm" class="form-grid">
+        <div class="field">
+          <label for="loginEmail">Correo</label>
+          <input id="loginEmail" class="input" type="email" required placeholder="corderomelaniebelen@gmail.com" />
+        </div>
+        <div class="field">
+          <label for="loginPassword">Contraseña</label>
+          <input id="loginPassword" class="input" type="password" required />
+        </div>
+        <button id="btnEmailSignIn" class="btn btn-outline" style="width:100%;" type="submit">Ingresar</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Dashboard de Historial -->
+  <main id="historySection" class="admin-shell hidden">
+    <div class="container-wide">
+      <div id="permissionErrorBanner" class="banner banner-error hidden"></div>
+
+      <div class="admin-topbar">
+        <div>
+          <h1 style="margin:0;font-size:1.5rem;letter-spacing:-0.02em;">Historial de Pedidos Entregados</h1>
+          <p style="margin:4px 0 0;color:var(--ink-muted);font-size:0.9rem;">Registro histórico de trabajos finalizados y entregados (<code>sanie-31158</code>).</p>
+        </div>
+        <div class="toolbar-group">
+          <a href="./admin.html" class="btn btn-outline btn-sm">Volver a Pedidos Activos</a>
+          <button id="btnExportHistoryCsv" class="btn btn-primary btn-sm" type="button">Exportar CSV</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid kpi-grid-4">
+        <div class="kpi-card">
+          <span class="kpi-label delivered">Entregados</span>
+          <div class="kpi-value mono" id="kpiTotalDelivered">0</div>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label ready">Unidades</span>
+          <div class="kpi-value mono" id="kpiTotalUnits">0</div>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label total">Facturación Total ($)</span>
+          <div class="kpi-value mono" id="kpiTotalRevenue">$ 0</div>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label processing">Este mes</span>
+          <div class="kpi-value mono" id="kpiMonthRevenue">$ 0</div>
+          <span class="contact-sub" id="kpiMonthSub">0 pedidos</span>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <input id="historySearch" class="input" style="width:260px;" type="search" placeholder="Buscar producto, cliente, nota..." />
+          <select id="historyMonthFilter" class="select" style="width:190px;">
+            <option value="ALL">Todos los meses</option>
+          </select>
+        </div>
+        <span id="historyVisibleCount" style="font-size:0.86rem;color:var(--ink-muted);">0 registros</span>
+      </div>
+
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="orders-table">
+            <thead>
+              <tr>
+                <th>Entregado</th>
+                <th>Fecha pactada</th>
+                <th>Product</th>
+                <th>Description</th>
+                <th>Price</th>
+                <th>Cantidad</th>
+                <th>Total</th>
+                <th>Client</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr>
+                <td colspan="9" class="empty-state">Cargando historial...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script type="module" src="./js/historial.js"></script>
+</body>
+</html>

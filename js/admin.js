@@ -7,6 +7,7 @@ import {
   INITIAL_EXCEL_ORDERS,
   formatMoney,
   formatMoneyOrDash,
+  calcOrderTotal,
   formatQuantity,
   formatShortDate,
   computeDaysLeft,
@@ -58,6 +59,7 @@ const kpiProcessing = document.getElementById("kpiProcessing");
 const kpiReady = document.getElementById("kpiReady");
 const kpiDelivered = document.getElementById("kpiDelivered");
 const kpiGrandTotal = document.getElementById("kpiGrandTotal");
+const historyCountBadge = document.getElementById("historyCountBadge");
 
 // Order modal elements
 const adminOrderModal = document.getElementById("adminOrderModal");
@@ -183,7 +185,7 @@ function renderKPIs() {
   let processing = 0;
   let ready = 0;
   let delivered = 0;
-  let totalMoney = 0;
+  let activeTotalMoney = 0;
 
   for (const o of orders) {
     if (o.status === "Pending") pending++;
@@ -191,15 +193,17 @@ function renderKPIs() {
     else if (o.status === "Ready") ready++;
     else if (o.status === "Delivered") delivered++;
 
-    const lineTotal = (Number(o.price) || 0) * (Number(o.quantity) || 0);
-    totalMoney += lineTotal;
+    if (o.status !== "Delivered") {
+      activeTotalMoney += calcOrderTotal(o);
+    }
   }
 
   kpiPending.textContent = String(pending);
   kpiProcessing.textContent = String(processing);
   kpiReady.textContent = String(ready);
   kpiDelivered.textContent = String(delivered);
-  kpiGrandTotal.textContent = formatMoney(totalMoney) || "$ 0";
+  if (historyCountBadge) historyCountBadge.textContent = String(delivered);
+  kpiGrandTotal.textContent = formatMoney(activeTotalMoney) || "$ 0";
 }
 
 function getVisibleOrders() {
@@ -207,6 +211,7 @@ function getVisibleOrders() {
   const statusFilter = ordersStatusFilter.value;
 
   const filtered = orders.filter((o) => {
+    if (o.status === "Delivered") return false;
     const okStatus = statusFilter === "ALL" || o.status === statusFilter;
     const okSearch =
       !term ||
@@ -236,7 +241,18 @@ function renderOrdersTable() {
 
   const visible = getVisibleOrders();
   if (visible.length === 0) {
-    ordersTableBody.innerHTML = `<tr><td colspan="10" class="empty-state">No hay pedidos que coincidan con el filtro actual.</td></tr>`;
+    const deliveredCount = orders.filter((o) => o.status === "Delivered").length;
+    if (deliveredCount > 0 && !ordersSearch.value.trim() && ordersStatusFilter.value === "ALL") {
+      ordersTableBody.innerHTML = `
+        <tr>
+          <td colspan="10" class="empty-state">
+            No hay pedidos activos pendientes. Tenés <strong>${deliveredCount}</strong> en el
+            <a href="./historial.html" style="text-decoration:underline;font-weight:700;color:var(--delivered-ink);">historial de entregados</a>.
+          </td>
+        </tr>`;
+    } else {
+      ordersTableBody.innerHTML = `<tr><td colspan="10" class="empty-state">No hay pedidos activos que coincidan con el filtro actual.</td></tr>`;
+    }
     return;
   }
 
@@ -245,13 +261,17 @@ function renderOrdersTable() {
       const days = computeDaysLeft(o.date, o.status);
       const priceVal = Number(o.price) || 0;
       const qtyVal = Number(o.quantity) || 0;
-      const totalVal = priceVal > 0 ? priceVal * (qtyVal > 0 ? qtyVal : 1) : 0;
+      const totalVal = calcOrderTotal(o);
       const webTag = o.source === "web" ? `<span class="source-tag">Web</span>` : "";
       const contactHtml = o.contact ? `<span class="contact-sub">${escapeHtml(o.contact)}</span>` : "";
 
       const statusOptions = ORDER_STATUSES.map(
         (st) => `<option value="${st}" ${o.status === st ? "selected" : ""}>${st}</option>`
       ).join("");
+
+      const deliveredBtnHtml = o.status === "Ready"
+        ? `<button type="button" class="btn btn-delivered btn-sm btn-mark-delivered" data-id="${escapeHtml(o.id)}">Entregado</button>`
+        : "";
 
       return `
         <tr data-id="${escapeHtml(o.id)}">
@@ -273,6 +293,7 @@ function renderOrdersTable() {
           </td>
           <td>
             <div class="row-actions">
+              ${deliveredBtnHtml}
               <button type="button" class="btn btn-outline btn-sm btn-edit-order" data-id="${escapeHtml(o.id)}">Editar</button>
               <button type="button" class="btn btn-danger-outline btn-sm btn-del-order" data-id="${escapeHtml(o.id)}">Borrar</button>
             </div>
@@ -292,11 +313,35 @@ function renderOrdersTable() {
           status: newStatus,
           updatedAt: serverTimestamp()
         });
-        showToast(`Estado actualizado a ${newStatus}`);
+        showToast(
+          newStatus === "Delivered"
+            ? "Pedido movido al historial de entregados"
+            : `Estado actualizado a ${newStatus}`
+        );
       } catch (err) {
         console.error(err);
         showToast("Error al actualizar estado", true);
         renderOrdersTable();
+      }
+    });
+  });
+
+  ordersTableBody.querySelectorAll(".btn-mark-delivered").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      const order = orders.find((x) => x.id === id);
+      if (!order) return;
+      btn.disabled = true;
+      try {
+        await updateDoc(doc(db, "orders", id), {
+          status: "Delivered",
+          updatedAt: serverTimestamp()
+        });
+        showToast(`"${order.product || order.client || "Pedido"}" marcado como entregado y movido al historial`);
+      } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        showToast("No se pudo marcar como entregado", true);
       }
     });
   });
@@ -607,7 +652,7 @@ document.getElementById("btnExportCsv").addEventListener("click", () => {
     const days = computeDaysLeft(o.date, o.status).text;
     const price = Number(o.price) || 0;
     const qty = Number(o.quantity) || 0;
-    const total = price > 0 ? price * (qty > 0 ? qty : 1) : 0;
+    const total = calcOrderTotal(o);
     rows.push([o.date || "", days, o.product || "", o.description || "", o.status || "", price || "", qty || "", total || "", o.client || "", o.contact || ""]);
   }
   const csv = "\uFEFF" + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");

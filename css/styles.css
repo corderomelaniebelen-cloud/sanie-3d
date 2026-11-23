@@ -218,6 +218,15 @@ textarea {
   background: #fef2f2;
 }
 
+.btn-delivered {
+  background: #15803d;
+  color: #ffffff;
+}
+
+.btn-delivered:hover:not(:disabled) {
+  background: #166534;
+}
+
 .btn-sm {
   padding: 6px 11px;
   font-size: 0.82rem;
@@ -691,12 +700,35 @@ textarea {
   margin-bottom: 20px;
 }
 
+.kpi-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 .kpi-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 14px 16px;
   box-shadow: var(--shadow-sm);
+}
+
+.kpi-card-link {
+  display: block;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kpi-card-link:hover {
+  transform: translateY(-2px);
+  border-color: #86efac;
+  box-shadow: var(--shadow-md);
+}
+
+.kpi-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--delivered-ink);
 }
 
 .kpi-label {

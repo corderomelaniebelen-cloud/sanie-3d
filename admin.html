@@ -26,6 +26,7 @@
 
       <div class="header-actions">
         <span id="adminUserEmail" class="mono" style="font-size:0.8rem;color:var(--ink-muted);"></span>
+        <a href="./historial.html" class="btn btn-outline btn-sm">Historial Entregados</a>
         <a href="./" class="btn btn-outline btn-sm">Ver tienda pública</a>
         <button id="btnSignOut" class="btn btn-ghost btn-sm hidden" type="button">Cerrar sesión</button>
       </div>
@@ -102,12 +103,13 @@
             <span class="kpi-label ready">Ready</span>
             <div class="kpi-value mono" id="kpiReady">0</div>
           </div>
-          <div class="kpi-card">
-            <span class="kpi-label delivered">Delivered</span>
+          <a href="./historial.html" class="kpi-card kpi-card-link" title="Abrir dashboard de pedidos entregados">
+            <span class="kpi-label delivered">Entregados</span>
             <div class="kpi-value mono" id="kpiDelivered">0</div>
-          </div>
+            <span class="kpi-hint">Ver historial →</span>
+          </a>
           <div class="kpi-card">
-            <span class="kpi-label total">Total ($)</span>
+            <span class="kpi-label total">Total Activo ($)</span>
             <div class="kpi-value mono" id="kpiGrandTotal">$ 0</div>
           </div>
         </div>
@@ -116,16 +118,16 @@
           <div class="toolbar-group">
             <button id="btnNewOrder" class="btn btn-accent" type="button">+ Nuevo Pedido</button>
             <button id="btnSortDate" class="btn btn-outline btn-sm" type="button">Ordenar por Fecha</button>
+            <a href="./historial.html" class="btn btn-outline btn-sm">Historial (<span id="historyCountBadge">0</span>)</a>
             <button id="btnExportCsv" class="btn btn-outline btn-sm" type="button">Exportar CSV</button>
           </div>
           <div class="toolbar-group">
             <input id="ordersSearch" class="input" style="width:230px;" type="search" placeholder="Buscar producto, cliente..." />
-            <select id="ordersStatusFilter" class="select" style="width:155px;">
-              <option value="ALL">Todos los estados</option>
+            <select id="ordersStatusFilter" class="select" style="width:165px;">
+              <option value="ALL">Todos los activos</option>
               <option value="Pending">Pending</option>
               <option value="Processing">Processing</option>
               <option value="Ready">Ready</option>
-              <option value="Delivered">Delivered</option>
             </select>
           </div>
         </div>

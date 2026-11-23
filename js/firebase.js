@@ -40,6 +40,41 @@ export function formatMoneyOrDash(value) {
   return formatted || "—";
 }
 
+export function calcOrderTotal(order) {
+  const price = Number(order?.price) || 0;
+  if (price <= 0) return 0;
+  const qty = Number(order?.quantity) || 0;
+  return price * (qty > 0 ? qty : 1);
+}
+
+export function formatTimestampDate(ts) {
+  if (!ts) return "—";
+  const d = typeof ts.toDate === "function" ? ts.toDate() : new Date(ts);
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "—";
+  const months = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${d.getDate()}-${months[d.getMonth()]} ${hh}:${mm}`;
+}
+
+export function getTimestampMonthKey(ts) {
+  if (!ts) return "";
+  const d = typeof ts.toDate === "function" ? ts.toDate() : new Date(ts);
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function formatMonthLabel(monthKey) {
+  if (!monthKey || !monthKey.includes("-")) return monthKey || "";
+  const [y, m] = monthKey.split("-");
+  const names = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+  const idx = Number(m) - 1;
+  return idx >= 0 && idx < 12 ? `${names[idx]} ${y}` : monthKey;
+}
+
 export function formatQuantity(value) {
   const num = Number(value);
   if (!Number.isFinite(num) || num < 0) return "—";
