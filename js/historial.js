@@ -245,8 +245,6 @@ function renderHistoryTable() {
       const id = btn.dataset.id;
       const order = deliveredOrders.find((x) => x.id === id);
       if (!order) return;
-      const label = order.product || order.client || "este pedido";
-      if (!confirm(`¿Devolver "${label}" al panel de Pedidos Activos con estado Ready?`)) return;
       btn.disabled = true;
       try {
         await updateDoc(doc(db, "orders", id), {
@@ -267,13 +265,13 @@ function renderHistoryTable() {
       const id = btn.dataset.id;
       const order = deliveredOrders.find((x) => x.id === id);
       if (!order) return;
-      const label = order.product || order.client || "este pedido";
-      if (!confirm(`¿Eliminar definitivamente "${label}" del historial?`)) return;
+      btn.disabled = true;
       try {
         await deleteDoc(doc(db, "orders", id));
         showToast("Registro eliminado del historial");
       } catch (err) {
         console.error(err);
+        btn.disabled = false;
         showToast("No se pudo eliminar el registro", true);
       }
     });

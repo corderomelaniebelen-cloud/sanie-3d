@@ -357,13 +357,13 @@ function renderOrdersTable() {
     btn.addEventListener("click", async () => {
       const order = orders.find((x) => x.id === btn.dataset.id);
       if (!order) return;
-      const label = order.product || order.client || "este pedido";
-      if (!confirm(`¿Eliminar "${label}" de ${order.client || "sin cliente"}?`)) return;
+      btn.disabled = true;
       try {
         await deleteDoc(doc(db, "orders", order.id));
         showToast("Pedido eliminado");
       } catch (err) {
         console.error(err);
+        btn.disabled = false;
         showToast("No se pudo eliminar el pedido", true);
       }
     });
@@ -429,12 +429,13 @@ function renderAdminCatalog() {
     btn.addEventListener("click", async () => {
       const item = catalogItems.find((p) => p.id === btn.dataset.id);
       if (!item) return;
-      if (!confirm(`¿Eliminar "${item.name}" del catálogo público?`)) return;
+      btn.disabled = true;
       try {
         await deleteDoc(doc(db, "catalog", item.id));
         showToast("Producto eliminado del catálogo");
       } catch (err) {
         console.error(err);
+        btn.disabled = false;
         showToast("No se pudo eliminar el producto", true);
       }
     });
