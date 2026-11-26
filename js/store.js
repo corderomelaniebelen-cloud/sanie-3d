@@ -8,8 +8,9 @@ import {
   calcItemSubtotal,
   todayISO,
   escapeHtml
-} from "./firebase.js?v=20261126";
-import { getProductIllustration } from "./icons.js?v=20261126";
+} from "./firebase.js?v=20261126b";
+import { getProductIllustration } from "./icons.js?v=20261126b";
+import { openReceiptModal } from "./receipt.js?v=20261126b";
 import {
   collection,
   addDoc,
@@ -46,6 +47,7 @@ const hpWebsite = document.getElementById("hpWebsite");
 let allProducts = [];
 let activeCategory = "Todos";
 let draftItems = [];
+let lastSubmittedOrder = null;
 
 heroIllustration.innerHTML = getProductIllustration("mate-motor", "Mates");
 
@@ -363,6 +365,9 @@ document.getElementById("btnCustomBanner").addEventListener("click", () => openO
 document.getElementById("closeOrderModal").addEventListener("click", closeModal);
 document.getElementById("cancelOrderModal").addEventListener("click", closeModal);
 document.getElementById("btnNewAfterSuccess").addEventListener("click", closeModal);
+document.getElementById("btnPrintPublicReceipt").addEventListener("click", () => {
+  if (lastSubmittedOrder) openReceiptModal(lastSubmittedOrder);
+});
 orderModal.addEventListener("click", (e) => {
   if (e.target === orderModal) closeModal();
 });
@@ -398,7 +403,7 @@ publicOrderForm.addEventListener("submit", async (e) => {
 
   try {
     const orderNumber = await allocateNextOrderNumber();
-    await addDoc(collection(db, "orders"), {
+    const orderRecord = {
       orderNumber,
       date,
       client,
@@ -407,10 +412,14 @@ publicOrderForm.addEventListener("submit", async (e) => {
       notes,
       items,
       total,
-      source: "web",
+      source: "web"
+    };
+    await addDoc(collection(db, "orders"), {
+      ...orderRecord,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+    lastSubmittedOrder = orderRecord;
 
     const summaryList = items.map((i) => `${i.quantity}× ${i.product}`).join(", ");
     const totalMsg = total > 0 ? ` · Total estimado: ${formatMoney(total)}` : " · A cotizar";

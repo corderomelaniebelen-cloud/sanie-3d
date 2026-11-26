@@ -19,8 +19,9 @@ import {
   todayISO,
   addDaysISO,
   escapeHtml
-} from "./firebase.js?v=20261126";
-import { getProductIllustration } from "./icons.js?v=20261126";
+} from "./firebase.js?v=20261126b";
+import { getProductIllustration } from "./icons.js?v=20261126b";
+import { openReceiptModal } from "./receipt.js?v=20261126b";
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -338,6 +339,7 @@ function renderOrdersTable() {
           <td>
             <div class="row-actions">
               ${deliveredBtnHtml}
+              <button type="button" class="btn btn-outline btn-sm btn-print-order" data-id="${escapeHtml(o.id)}">Boleta</button>
               <button type="button" class="btn btn-outline btn-sm btn-edit-order" data-id="${escapeHtml(o.id)}">Editar</button>
               <button type="button" class="btn btn-danger-outline btn-sm btn-del-order" data-id="${escapeHtml(o.id)}">Borrar</button>
             </div>
@@ -387,6 +389,13 @@ function renderOrdersTable() {
         btn.disabled = false;
         showToast("No se pudo marcar como entregado", true);
       }
+    });
+  });
+
+  ordersTableBody.querySelectorAll(".btn-print-order").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const order = orders.find((x) => x.id === btn.dataset.id);
+      if (order) openReceiptModal(order);
     });
   });
 

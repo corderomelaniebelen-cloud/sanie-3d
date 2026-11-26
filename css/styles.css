@@ -1029,6 +1029,243 @@ textarea {
   }
 }
 
+/* Printable Receipt / Boleta */
+.receipt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.receipt-preview-wrap {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  overflow-x: auto;
+}
+
+.receipt-sheet {
+  background: #ffffff;
+  color: #18181b;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 620px;
+  margin: 0 auto;
+  box-shadow: var(--shadow-sm);
+}
+
+.receipt-sheet.receipt-ticket {
+  max-width: 310px;
+  padding: 16px 14px;
+  font-size: 0.84rem;
+}
+
+.rcp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #18181b;
+  margin-bottom: 14px;
+}
+
+.receipt-ticket .rcp-head {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rcp-brand {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.rcp-tagline {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+.rcp-doc-box {
+  text-align: right;
+}
+
+.receipt-ticket .rcp-doc-box {
+  text-align: left;
+}
+
+.rcp-doc-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-subtle);
+}
+
+.rcp-doc-num {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.rcp-meta-grid {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.86rem;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border-strong);
+  margin-bottom: 14px;
+}
+
+.rcp-meta-grid span {
+  color: var(--ink-subtle);
+}
+
+.rcp-meta-right {
+  text-align: right;
+}
+
+.receipt-ticket .rcp-meta-right {
+  text-align: left;
+}
+
+.rcp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.87rem;
+}
+
+.rcp-table th {
+  text-align: left;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-subtle);
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.rcp-table td {
+  padding: 9px 6px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.rcp-num {
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+.rcp-item-name {
+  font-weight: 600;
+}
+
+.rcp-item-desc {
+  font-size: 0.76rem;
+  color: var(--ink-subtle);
+  margin-top: 2px;
+}
+
+.rcp-notes {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #faf9f7;
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+
+.rcp-total-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fdf2f8;
+  border: 1px solid #fbcfe8;
+}
+
+.receipt-ticket .rcp-total-bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.rcp-units-info {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.rcp-grand-total {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.rcp-grand-total span {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+}
+
+.rcp-grand-total strong {
+  font-size: 1.28rem;
+  color: var(--accent);
+}
+
+.rcp-legal {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--ink-subtle);
+}
+
+.print-only-area {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body > *:not(#printReceiptArea) {
+    display: none !important;
+  }
+
+  #printReceiptArea {
+    display: block !important;
+  }
+
+  .receipt-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .receipt-sheet.receipt-ticket {
+    max-width: 76mm !important;
+    margin: 0 auto !important;
+  }
+
+  .rcp-total-bar {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 /* Modal */
 .modal-backdrop {
   position: fixed;

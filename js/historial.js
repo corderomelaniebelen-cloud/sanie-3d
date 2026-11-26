@@ -14,7 +14,8 @@ import {
   formatMonthLabel,
   todayISO,
   escapeHtml
-} from "./firebase.js?v=20261126";
+} from "./firebase.js?v=20261126b";
+import { openReceiptModal } from "./receipt.js?v=20261126b";
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -263,6 +264,7 @@ function renderHistoryTable() {
           <td class="mono"><strong>${escapeHtml(formatMoney(totalVal) || "—")}</strong></td>
           <td>
             <div class="row-actions">
+              <button type="button" class="btn btn-outline btn-sm btn-print-history" data-id="${escapeHtml(o.id)}">Boleta</button>
               <button type="button" class="btn btn-outline btn-sm btn-restore-order" data-id="${escapeHtml(o.id)}">Restaurar</button>
               <button type="button" class="btn btn-danger-outline btn-sm btn-del-history" data-id="${escapeHtml(o.id)}">Borrar</button>
             </div>
@@ -270,6 +272,13 @@ function renderHistoryTable() {
         </tr>`;
     })
     .join("");
+
+  historyTableBody.querySelectorAll(".btn-print-history").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const order = deliveredOrders.find((x) => x.id === btn.dataset.id);
+      if (order) openReceiptModal(order);
+    });
+  });
 
   historyTableBody.querySelectorAll(".btn-restore-order").forEach((btn) => {
     btn.addEventListener("click", async () => {
