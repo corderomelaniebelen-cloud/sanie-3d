@@ -892,6 +892,143 @@ textarea {
   gap: 6px;
 }
 
+/* Order Number & Nested Products List */
+.order-num-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 7px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-strong);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.order-items-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+  min-width: 260px;
+}
+
+.order-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 0.84rem;
+}
+
+.order-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.order-item-title {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.order-item-qty {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 4px;
+}
+
+.order-item-desc {
+  font-size: 0.76rem;
+  color: var(--ink-subtle);
+}
+
+.order-item-price {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.order-notes-sub {
+  margin-top: 5px;
+  font-size: 0.76rem;
+  color: var(--ink-subtle);
+}
+
+/* Multi-item Editor inside Modal */
+.modal-panel-wide {
+  max-width: 680px;
+}
+
+.items-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.items-editor-list {
+  display: grid;
+  gap: 10px;
+}
+
+.item-editor-card {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.item-editor-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.item-editor-nums {
+  display: grid;
+  grid-template-columns: 1fr 110px auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.item-subtotal-pill {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.84rem;
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 96px;
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .item-editor-nums {
+    grid-template-columns: 1fr 1fr;
+  }
+  .item-subtotal-pill {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+}
+
 /* Modal */
 .modal-backdrop {
   position: fixed;

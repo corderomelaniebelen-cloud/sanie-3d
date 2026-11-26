@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Panel Admin — Sanie 3D</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2318181b'%3E%3Crect width='24' height='24' rx='6'/%3E%3Cpolygon points='12,4 19,8 19,16 12,20 5,16 5,8' fill='none' stroke='%23ffffff' stroke-width='1.8'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="./css/styles.css?v=20261123b" />
+  <link rel="stylesheet" href="./css/styles.css?v=20261126" />
 </head>
 <body>
   <header class="site-header">
@@ -72,7 +72,7 @@
       <div class="admin-topbar">
         <div>
           <h1 style="margin:0;font-size:1.5rem;letter-spacing:-0.02em;">Control de Pedidos y Catálogo</h1>
-          <p style="margin:4px 0 0;color:var(--ink-muted);font-size:0.9rem;">Sincronizado en tiempo real con Cloud Firestore (<code>sanie-31158</code>).</p>
+          <p style="margin:4px 0 0;color:var(--ink-muted);font-size:0.9rem;">Cada pedido agrupa sus productos y suma el total automáticamente (<code>sanie-31158</code>).</p>
         </div>
         <div class="tab-bar" role="tablist">
           <button id="tabOrders" class="tab-btn active" type="button" role="tab">Pedidos</button>
@@ -85,7 +85,7 @@
         <div id="seedOrdersBanner" class="banner banner-accent hidden">
           <div>
             <strong>Tu base de pedidos está vacía.</strong>
-            <span style="display:block;font-size:0.86rem;color:var(--ink-muted);">Podés importar los 7 pedidos iniciales de tu Excel y el catálogo base con un clic.</span>
+            <span style="display:block;font-size:0.86rem;color:var(--ink-muted);">Podés importar los pedidos iniciales (#001 Papa, #002 Mishelle, #003 Tamara) y el catálogo base con un clic.</span>
           </div>
           <button id="btnSeedStarterData" class="btn btn-accent btn-sm" type="button">Importar datos iniciales</button>
         </div>
@@ -122,7 +122,7 @@
             <button id="btnExportCsv" class="btn btn-outline btn-sm" type="button">Exportar CSV</button>
           </div>
           <div class="toolbar-group">
-            <input id="ordersSearch" class="input" style="width:230px;" type="search" placeholder="Buscar producto, cliente..." />
+            <input id="ordersSearch" class="input" style="width:250px;" type="search" placeholder="Buscar #pedido, cliente, producto..." />
             <select id="ordersStatusFilter" class="select" style="width:165px;">
               <option value="ALL">Todos los activos</option>
               <option value="Pending">Pending</option>
@@ -137,21 +137,19 @@
             <table class="orders-table">
               <thead>
                 <tr>
-                  <th>Date</th>
+                  <th>Pedido #</th>
+                  <th>Fecha</th>
                   <th class="col-days">Days Left</th>
-                  <th>Product</th>
-                  <th>Description</th>
-                  <th>Status</th>
-                  <th>Price</th>
-                  <th>Cantidad</th>
+                  <th>Cliente</th>
+                  <th>Productos</th>
+                  <th>Estado</th>
                   <th>Total</th>
-                  <th>Client</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody id="ordersTableBody">
                 <tr>
-                  <td colspan="10" class="empty-state">Cargando pedidos...</td>
+                  <td colspan="8" class="empty-state">Cargando pedidos...</td>
                 </tr>
               </tbody>
             </table>
@@ -174,9 +172,9 @@
     </div>
   </main>
 
-  <!-- Modal Crear / Editar Pedido -->
+  <!-- Modal Crear / Editar Pedido (Multi-producto) -->
   <div id="adminOrderModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="adminOrderModalTitle">
-    <div class="modal-panel">
+    <div class="modal-panel modal-panel-wide">
       <div class="modal-head">
         <h2 id="adminOrderModalTitle">Nuevo Pedido</h2>
         <button id="closeAdminOrderModal" class="modal-close" type="button" aria-label="Cerrar">&times;</button>
@@ -185,29 +183,11 @@
         <form id="adminOrderForm" class="form-grid">
           <input type="hidden" id="editOrderId" />
 
-          <div class="field">
-            <label for="fDate">Fecha de entrega</label>
-            <input id="fDate" class="input" type="date" />
-            <div class="quick-date-row">
-              <button type="button" class="btn btn-outline btn-sm" data-qdate="0">Hoy</button>
-              <button type="button" class="btn btn-outline btn-sm" data-qdate="3">+3 días</button>
-              <button type="button" class="btn btn-outline btn-sm" data-qdate="7">+7 días</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-qdate="clear">Vacía</button>
-            </div>
-          </div>
-
-          <div class="field">
-            <label for="fProduct">Producto</label>
-            <input id="fProduct" class="input" type="text" list="productSuggestions" maxlength="140" placeholder="Ej: Mate motor" />
-            <datalist id="productSuggestions"></datalist>
-          </div>
-
-          <div class="field">
-            <label for="fDescription">Descripción</label>
-            <textarea id="fDescription" class="textarea" maxlength="1000" placeholder="Color, detalles, tablero, etc."></textarea>
-          </div>
-
           <div class="form-row-2">
+            <div class="field">
+              <label for="fOrderNumber">Número de Pedido (#)</label>
+              <input id="fOrderNumber" class="input mono" type="number" min="1" max="1000000" step="1" required />
+            </div>
             <div class="field">
               <label for="fStatus">Estado</label>
               <select id="fStatus" class="select">
@@ -216,21 +196,6 @@
                 <option value="Ready">Ready</option>
                 <option value="Delivered">Delivered</option>
               </select>
-            </div>
-            <div class="field">
-              <label for="fPrice">Precio unit. ($)</label>
-              <input id="fPrice" class="input" type="number" min="0" step="any" placeholder="0" />
-            </div>
-          </div>
-
-          <div class="form-row-2" style="align-items:end;">
-            <div class="field">
-              <label for="fQuantity">Cantidad</label>
-              <input id="fQuantity" class="input" type="number" min="0" step="any" value="1" />
-            </div>
-            <div class="total-preview-box">
-              <span>Total:</span>
-              <strong id="fTotalPreview" class="mono">$ 0</strong>
             </div>
           </div>
 
@@ -244,6 +209,36 @@
               <label for="fContact">Contacto (opcional)</label>
               <input id="fContact" class="input" type="text" maxlength="120" placeholder="WhatsApp o IG" />
             </div>
+          </div>
+
+          <div class="field">
+            <label for="fDate">Fecha de entrega</label>
+            <input id="fDate" class="input" type="date" />
+            <div class="quick-date-row">
+              <button type="button" class="btn btn-outline btn-sm" data-qdate="0">Hoy</button>
+              <button type="button" class="btn btn-outline btn-sm" data-qdate="3">+3 días</button>
+              <button type="button" class="btn btn-outline btn-sm" data-qdate="7">+7 días</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-qdate="clear">Vacía</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="items-editor-header">
+              <label style="font-size:0.86rem;font-weight:700;">Productos del pedido</label>
+              <button type="button" id="btnAddAdminItem" class="btn btn-outline btn-sm">+ Agregar producto</button>
+            </div>
+            <datalist id="productSuggestions"></datalist>
+            <div id="adminItemsContainer" class="items-editor-list"></div>
+          </div>
+
+          <div class="total-preview-box">
+            <span id="fItemsSummary">1 producto</span>
+            <strong id="fTotalPreview" class="mono">$ 0</strong>
+          </div>
+
+          <div class="field">
+            <label for="fNotes">Notas generales del pedido (opcional)</label>
+            <textarea id="fNotes" class="textarea" maxlength="1000" placeholder="Envío, seña, detalles generales..."></textarea>
           </div>
 
           <label id="keepAddingWrap" style="display:flex;align-items:center;gap:8px;font-size:0.88rem;cursor:pointer;">
@@ -346,6 +341,6 @@
 
   <div id="toastContainer" class="toast-container"></div>
 
-  <script type="module" src="./js/admin.js?v=20261123b"></script>
+  <script type="module" src="./js/admin.js?v=20261126"></script>
 </body>
 </html>

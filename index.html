@@ -6,7 +6,7 @@
   <title>Sanie 3D — Estudio de Impresión 3D y Diseños Personalizados</title>
   <meta name="description" content="Mates personalizados, ajedrez temáticos, llaveros y piezas a medida impresas en 3D con terminación de estudio." />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2318181b'%3E%3Crect width='24' height='24' rx='6'/%3E%3Cpolygon points='12,4 19,8 19,16 12,20 5,16 5,8' fill='none' stroke='%23ffffff' stroke-width='1.8'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="./css/styles.css?v=20261123b" />
+  <link rel="stylesheet" href="./css/styles.css?v=20261126" />
 </head>
 <body>
   <header class="site-header">
@@ -32,7 +32,7 @@
       </nav>
 
       <div class="header-actions">
-        <button id="btnCustomHeroNav" class="btn btn-outline btn-sm" type="button">Cotizar a medida</button>
+        <button id="btnCustomHeroNav" class="btn btn-outline btn-sm" type="button">Armar pedido</button>
         <a href="./admin.html" class="btn btn-primary btn-sm">Panel Admin</a>
       </div>
     </div>
@@ -49,7 +49,7 @@
           <h1>Objetos únicos impresos capa por capa con precisión de taller.</h1>
           <p>
             Mates personalizados, juegos de tablero, accesorios y piezas a medida pensadas para durar.
-            Elegí un diseño del catálogo o mandanos tu idea para cotizar.
+            Elegí uno o varios productos en tu pedido y mandanos tu idea para producir.
           </p>
           <div class="hero-ctas">
             <a href="#catalogo" class="btn btn-primary">Ver catálogo</a>
@@ -65,8 +65,8 @@
               <span>PLA+ de alta resistencia y PETG técnico</span>
             </div>
             <div class="spec-item">
-              <strong>Seguimiento directo</strong>
-              <span>Cargás tu pedido y entra directo al taller</span>
+              <strong>Pedido numerado</strong>
+              <span>Sumá varios productos en un mismo pedido</span>
             </div>
           </div>
         </div>
@@ -89,7 +89,7 @@
         <div class="section-head">
           <div>
             <h2 class="section-title">Catálogo del taller</h2>
-            <p class="section-subtitle">Elegí producto, cantidad y personalización. Tu pedido se registra al instante.</p>
+            <p class="section-subtitle">Elegí producto, cantidad y personalización. Podés sumar varios productos en el mismo pedido.</p>
           </div>
         </div>
 
@@ -135,13 +135,13 @@
         <div class="steps-grid">
           <article class="step-card">
             <span class="step-num">1</span>
-            <h3>Elegís o encargás</h3>
-            <p>Seleccionás un diseño del catálogo o cargás tu pedido personalizado con colores, cantidad y fecha estimada.</p>
+            <h3>Armás tu pedido</h3>
+            <p>Seleccionás los productos que querés o cargás una pieza a medida con colores, cantidades y fecha deseada.</p>
           </article>
           <article class="step-card">
             <span class="step-num">2</span>
             <h3>Impresión y control</h3>
-            <p>Tu pedido pasa a estado Processing en nuestro tablero de taller, cuidando terminaciones y tolerancias.</p>
+            <p>Tu pedido recibe un número único y entra a producción en nuestro taller, cuidando terminaciones y tolerancias.</p>
           </article>
           <article class="step-card">
             <span class="step-num">3</span>
@@ -160,47 +160,28 @@
     </div>
   </footer>
 
-  <!-- Modal de Pedido Público -->
+  <!-- Modal de Pedido Público (Multi-producto) -->
   <div id="orderModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
-    <div class="modal-panel">
+    <div class="modal-panel modal-panel-wide">
       <div class="modal-head">
-        <h2 id="orderModalTitle">Encargar producto</h2>
+        <h2 id="orderModalTitle">Armar Pedido</h2>
         <button id="closeOrderModal" class="modal-close" type="button" aria-label="Cerrar">&times;</button>
       </div>
       <div class="modal-body">
         <form id="publicOrderForm" class="form-grid">
           <input type="text" id="hpWebsite" autocomplete="off" tabindex="-1" style="position:absolute;left:-9999px;opacity:0;" aria-hidden="true" />
-          <input type="hidden" id="orderCatalogId" />
-          <input type="hidden" id="orderUnitPrice" value="0" />
 
-          <div class="field">
-            <label for="orderProduct">Producto / Trabajo</label>
-            <input id="orderProduct" class="input" type="text" maxlength="140" required />
-          </div>
-
-          <div class="form-row-2">
-            <div class="field">
-              <label>Cantidad</label>
-              <div class="qty-stepper">
-                <button type="button" id="qtyMinus" aria-label="Restar cantidad">−</button>
-                <input id="orderQty" type="number" min="1" max="500" step="1" value="1" required />
-                <button type="button" id="qtyPlus" aria-label="Sumar cantidad">+</button>
-              </div>
+          <div>
+            <div class="items-editor-header">
+              <label style="font-size:0.86rem;font-weight:700;">Productos en el pedido</label>
+              <button type="button" id="btnAddPublicItem" class="btn btn-outline btn-sm">+ Agregar otro producto</button>
             </div>
-            <div class="field">
-              <label for="orderDate">Fecha deseada (opcional)</label>
-              <input id="orderDate" class="input" type="date" />
-            </div>
+            <div id="publicItemsContainer" class="items-editor-list"></div>
           </div>
 
           <div class="total-preview-box">
-            <span id="orderPriceBreakdown">Precio unitario: A cotizar</span>
-            <strong id="orderTotalDisplay">A cotizar</strong>
-          </div>
-
-          <div class="field">
-            <label for="orderDesc">Colores, medidas o personalización</label>
-            <textarea id="orderDesc" class="textarea" maxlength="1000" placeholder="Ej: Color azul y oro (Boca), nombre grabado, etc."></textarea>
+            <span id="orderPriceBreakdown">1 producto</span>
+            <strong id="orderTotalDisplay" class="mono">A cotizar</strong>
           </div>
 
           <div class="form-row-2">
@@ -214,6 +195,17 @@
             </div>
           </div>
 
+          <div class="form-row-2">
+            <div class="field">
+              <label for="orderDate">Fecha deseada (opcional)</label>
+              <input id="orderDate" class="input" type="date" />
+            </div>
+            <div class="field">
+              <label for="orderNotes">Notas generales (opcional)</label>
+              <input id="orderNotes" class="input" type="text" maxlength="1000" placeholder="Envío, horario, aclaraciones..." />
+            </div>
+          </div>
+
           <div class="modal-foot">
             <button type="button" id="cancelOrderModal" class="btn btn-outline">Cancelar</button>
             <button type="submit" id="submitPublicOrder" class="btn btn-accent">Enviar pedido</button>
@@ -222,7 +214,7 @@
 
         <div id="orderSuccessView" class="hidden" style="text-align:center; padding: 14px 6px;">
           <div style="width:48px;height:48px;margin:0 auto 12px;border-radius:50%;background:var(--delivered-bg);color:var(--delivered-ink);display:grid;place-items:center;font-size:1.3rem;font-weight:700;">✓</div>
-          <h3 style="margin:0 0 8px;">¡Pedido enviado al taller!</h3>
+          <h3 id="orderSuccessTitle" style="margin:0 0 8px;">¡Pedido enviado al taller!</h3>
           <p id="orderSuccessSummary" style="margin:0 0 18px;color:var(--ink-muted);font-size:0.93rem;"></p>
           <button type="button" id="btnNewAfterSuccess" class="btn btn-primary">Volver al catálogo</button>
         </div>
@@ -232,6 +224,6 @@
 
   <div id="toastContainer" class="toast-container"></div>
 
-  <script type="module" src="./js/store.js?v=20261123b"></script>
+  <script type="module" src="./js/store.js?v=20261126"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Historial de Entregados — Sanie 3D</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2318181b'%3E%3Crect width='24' height='24' rx='6'/%3E%3Cpolygon points='12,4 19,8 19,16 12,20 5,16 5,8' fill='none' stroke='%23ffffff' stroke-width='1.8'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="./css/styles.css?v=20261123b" />
+  <link rel="stylesheet" href="./css/styles.css?v=20261126" />
 </head>
 <body>
   <header class="site-header">
@@ -72,7 +72,7 @@
       <div class="admin-topbar">
         <div>
           <h1 style="margin:0;font-size:1.5rem;letter-spacing:-0.02em;">Historial de Pedidos Entregados</h1>
-          <p style="margin:4px 0 0;color:var(--ink-muted);font-size:0.9rem;">Registro histórico de trabajos finalizados y entregados (<code>sanie-31158</code>).</p>
+          <p style="margin:4px 0 0;color:var(--ink-muted);font-size:0.9rem;">Registro histórico por número de pedido con detalle de productos y total (<code>sanie-31158</code>).</p>
         </div>
         <div class="toolbar-group">
           <a href="./admin.html" class="btn btn-outline btn-sm">Volver a Pedidos Activos</a>
@@ -102,7 +102,7 @@
 
       <div class="toolbar">
         <div class="toolbar-group">
-          <input id="historySearch" class="input" style="width:260px;" type="search" placeholder="Buscar producto, cliente, nota..." />
+          <input id="historySearch" class="input" style="width:260px;" type="search" placeholder="Buscar #pedido, cliente, producto..." />
           <select id="historyMonthFilter" class="select" style="width:190px;">
             <option value="ALL">Todos los meses</option>
           </select>
@@ -115,20 +115,18 @@
           <table class="orders-table">
             <thead>
               <tr>
+                <th>Pedido #</th>
                 <th>Entregado</th>
                 <th>Fecha pactada</th>
-                <th>Product</th>
-                <th>Description</th>
-                <th>Price</th>
-                <th>Cantidad</th>
+                <th>Cliente</th>
+                <th>Productos</th>
                 <th>Total</th>
-                <th>Client</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody id="historyTableBody">
               <tr>
-                <td colspan="9" class="empty-state">Cargando historial...</td>
+                <td colspan="7" class="empty-state">Cargando historial...</td>
               </tr>
             </tbody>
           </table>
@@ -139,6 +137,6 @@
 
   <div id="toastContainer" class="toast-container"></div>
 
-  <script type="module" src="./js/historial.js?v=20261123b"></script>
+  <script type="module" src="./js/historial.js?v=20261126"></script>
 </body>
 </html>

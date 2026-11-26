@@ -1,9 +1,12 @@
 import {
   db,
   auth,
-  formatMoney,
-  formatMoneyOrDash,
+  normalizeOrder,
+  calcItemSubtotal,
   calcOrderTotal,
+  calcOrderUnits,
+  formatOrderNumber,
+  formatMoney,
   formatQuantity,
   formatShortDate,
   formatTimestampDate,
@@ -11,7 +14,7 @@ import {
   formatMonthLabel,
   todayISO,
   escapeHtml
-} from "./firebase.js";
+} from "./firebase.js?v=20261126";
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -148,10 +151,8 @@ function renderKPIs() {
   let monthCount = 0;
 
   for (const o of deliveredOrders) {
-    const qty = Number(o.quantity) || 0;
-    const price = Number(o.price) || 0;
     const lineTotal = calcOrderTotal(o);
-    totalUnits += qty > 0 ? qty : (price > 0 ? 1 : 0);
+    totalUnits += calcOrderUnits(o);
     totalRevenue += lineTotal;
 
     if (getOrderMonthKey(o) === currentMonthKey) {
@@ -173,14 +174,45 @@ function getVisibleHistory() {
 
   return deliveredOrders.filter((o) => {
     const okMonth = monthFilter === "ALL" || getOrderMonthKey(o) === monthFilter;
+    const itemsText = o.items
+      .map((it) => `${it.product || ""} ${it.description || ""}`)
+      .join(" ")
+      .toLowerCase();
+    const numText = formatOrderNumber(o.orderNumber).toLowerCase();
     const okSearch =
       !term ||
-      (o.product || "").toLowerCase().includes(term) ||
-      (o.description || "").toLowerCase().includes(term) ||
+      numText.includes(term) ||
+      String(o.orderNumber || "").includes(term) ||
       (o.client || "").toLowerCase().includes(term) ||
-      (o.contact || "").toLowerCase().includes(term);
+      (o.contact || "").toLowerCase().includes(term) ||
+      (o.notes || "").toLowerCase().includes(term) ||
+      itemsText.includes(term);
     return okMonth && okSearch;
   });
+}
+
+function renderOrderItemsHtml(order) {
+  const rows = order.items
+    .map((it) => {
+      const sub = calcItemSubtotal(it);
+      const qtyLabel = it.quantity > 0 ? `${formatQuantity(it.quantity)}×` : "";
+      const descHtml = it.description ? `<span class="order-item-desc">${escapeHtml(it.description)}</span>` : "";
+      const subHtml = sub > 0
+        ? escapeHtml(formatMoney(sub))
+        : (it.price > 0 ? escapeHtml(formatMoney(it.price)) : "—");
+      return `
+        <li class="order-item-row">
+          <div class="order-item-main">
+            <span class="order-item-title">${qtyLabel ? `<span class="order-item-qty">${escapeHtml(qtyLabel)}</span>` : ""}${escapeHtml(it.product || "Sin producto")}</span>
+            ${descHtml}
+          </div>
+          <span class="order-item-price">${subHtml}</span>
+        </li>`;
+    })
+    .join("");
+
+  const notesHtml = order.notes ? `<div class="order-notes-sub">Nota: ${escapeHtml(order.notes)}</div>` : "";
+  return `<ul class="order-items-list">${rows}</ul>${notesHtml}`;
 }
 
 function renderHistoryTable() {
@@ -193,7 +225,7 @@ function renderHistoryTable() {
   if (deliveredOrders.length === 0) {
     historyTableBody.innerHTML = `
       <tr>
-        <td colspan="9" class="empty-state">
+        <td colspan="7" class="empty-state">
           <p style="margin:0 0 12px;">Todavía no hay pedidos entregados en el historial.</p>
           <a href="./admin.html" class="btn btn-primary btn-sm">Ir a Pedidos Activos</a>
         </td>
@@ -204,32 +236,31 @@ function renderHistoryTable() {
   if (visible.length === 0) {
     historyTableBody.innerHTML = `
       <tr>
-        <td colspan="9" class="empty-state">No hay pedidos entregados que coincidan con ese filtro.</td>
+        <td colspan="7" class="empty-state">No hay pedidos entregados que coincidan con ese filtro.</td>
       </tr>`;
     return;
   }
 
   historyTableBody.innerHTML = visible
     .map((o) => {
-      const priceVal = Number(o.price) || 0;
-      const qtyVal = Number(o.quantity) || 0;
       const totalVal = calcOrderTotal(o);
       const webTag = o.source === "web" ? `<span class="source-tag">Web</span>` : "";
       const contactHtml = o.contact ? `<span class="contact-sub">${escapeHtml(o.contact)}</span>` : "";
 
       return `
         <tr data-id="${escapeHtml(o.id)}">
+          <td>
+            <span class="order-num-badge">${escapeHtml(formatOrderNumber(o.orderNumber))}</span>
+            ${webTag}
+          </td>
           <td class="mono" style="color:var(--delivered-ink);font-weight:600;">${escapeHtml(formatTimestampDate(o.updatedAt))}</td>
           <td class="mono">${escapeHtml(formatShortDate(o.date))}</td>
-          <td><strong>${escapeHtml(o.product || "—")}</strong>${webTag}</td>
-          <td style="max-width:250px;color:var(--ink-muted);">${escapeHtml(o.description || "—")}</td>
-          <td class="mono">${escapeHtml(formatMoneyOrDash(priceVal))}</td>
-          <td class="mono">${escapeHtml(qtyVal > 0 ? formatQuantity(qtyVal) : "—")}</td>
-          <td class="mono"><strong>${escapeHtml(formatMoneyOrDash(totalVal))}</strong></td>
           <td>
             <strong>${escapeHtml(o.client || "—")}</strong>
             ${contactHtml}
           </td>
+          <td>${renderOrderItemsHtml(o)}</td>
+          <td class="mono"><strong>${escapeHtml(formatMoney(totalVal) || "—")}</strong></td>
           <td>
             <div class="row-actions">
               <button type="button" class="btn btn-outline btn-sm btn-restore-order" data-id="${escapeHtml(o.id)}">Restaurar</button>
@@ -251,7 +282,7 @@ function renderHistoryTable() {
           status: "Ready",
           updatedAt: serverTimestamp()
         });
-        showToast("Pedido restaurado a Ready en Pedidos Activos");
+        showToast(`Pedido ${formatOrderNumber(order.orderNumber)} restaurado a Ready`);
       } catch (err) {
         console.error(err);
         btn.disabled = false;
@@ -287,7 +318,7 @@ function startListener() {
     q,
     (snap) => {
       deliveredOrders = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
+        .map((d) => normalizeOrder({ id: d.id, ...d.data() }))
         .filter((o) => o.status === "Delivered");
       renderHistoryTable();
     },
@@ -307,21 +338,21 @@ historySearch.addEventListener("input", renderHistoryTable);
 historyMonthFilter.addEventListener("change", renderHistoryTable);
 
 document.getElementById("btnExportHistoryCsv").addEventListener("click", () => {
-  const rows = [["Entregado", "Fecha Pactada", "Product", "Description", "Price", "Cantidad", "Total", "Client", "Contact"]];
+  const rows = [["Pedido #", "Entregado", "Fecha Pactada", "Cliente", "Contacto", "Productos", "Notas", "Total ($)"]];
   for (const o of getVisibleHistory()) {
-    const price = Number(o.price) || 0;
-    const qty = Number(o.quantity) || 0;
     const total = calcOrderTotal(o);
+    const itemsDetail = o.items
+      .map((it) => `${it.quantity}x ${it.product}${it.description ? ` (${it.description})` : ""}${it.price > 0 ? ` [$${it.price}]` : ""}`)
+      .join(" | ");
     rows.push([
+      formatOrderNumber(o.orderNumber),
       formatTimestampDate(o.updatedAt),
       o.date || "",
-      o.product || "",
-      o.description || "",
-      price || "",
-      qty || "",
-      total || "",
       o.client || "",
-      o.contact || ""
+      o.contact || "",
+      itemsDetail,
+      o.notes || "",
+      total || ""
     ]);
   }
   const csv = "\uFEFF" + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");

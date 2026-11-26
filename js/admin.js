@@ -1,21 +1,26 @@
 import {
-  app,
   db,
   auth,
   ORDER_STATUSES,
   STARTER_CATALOG,
   INITIAL_EXCEL_ORDERS,
+  allocateNextOrderNumber,
+  normalizeOrder,
+  normalizeOrderItem,
+  calcItemSubtotal,
+  calcItemsTotal,
+  calcOrderTotal,
+  formatOrderNumber,
   formatMoney,
   formatMoneyOrDash,
-  calcOrderTotal,
   formatQuantity,
   formatShortDate,
   computeDaysLeft,
   todayISO,
   addDaysISO,
   escapeHtml
-} from "./firebase.js";
-import { getProductIllustration } from "./icons.js";
+} from "./firebase.js?v=20261126";
+import { getProductIllustration } from "./icons.js?v=20261126";
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -27,6 +32,7 @@ import {
   collection,
   doc,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   onSnapshot,
@@ -66,15 +72,15 @@ const adminOrderModal = document.getElementById("adminOrderModal");
 const adminOrderModalTitle = document.getElementById("adminOrderModalTitle");
 const adminOrderForm = document.getElementById("adminOrderForm");
 const editOrderId = document.getElementById("editOrderId");
+const fOrderNumber = document.getElementById("fOrderNumber");
 const fDate = document.getElementById("fDate");
-const fProduct = document.getElementById("fProduct");
-const fDescription = document.getElementById("fDescription");
 const fStatus = document.getElementById("fStatus");
-const fPrice = document.getElementById("fPrice");
-const fQuantity = document.getElementById("fQuantity");
-const fTotalPreview = document.getElementById("fTotalPreview");
 const fClient = document.getElementById("fClient");
 const fContact = document.getElementById("fContact");
+const fNotes = document.getElementById("fNotes");
+const adminItemsContainer = document.getElementById("adminItemsContainer");
+const fItemsSummary = document.getElementById("fItemsSummary");
+const fTotalPreview = document.getElementById("fTotalPreview");
 const fKeepAdding = document.getElementById("fKeepAdding");
 const keepAddingWrap = document.getElementById("keepAddingWrap");
 const saveAdminOrderBtn = document.getElementById("saveAdminOrderBtn");
@@ -99,6 +105,7 @@ const saveAdminProductBtn = document.getElementById("saveAdminProductBtn");
 
 let orders = [];
 let catalogItems = [];
+let modalItems = [];
 let sortByDeliveryDate = false;
 let unsubOrders = null;
 let unsubCatalog = null;
@@ -167,12 +174,17 @@ function stopListeners() {
   if (unsubCatalog) { unsubCatalog(); unsubCatalog = null; }
 }
 
+function getMaxOrderNumber() {
+  return orders.reduce((max, o) => Math.max(max, Number(o.orderNumber) || 0), 0);
+}
+
 function updateSuggestions() {
   const prodList = document.getElementById("productSuggestions");
   const clientList = document.getElementById("clientSuggestions");
+  const itemProducts = orders.flatMap((o) => o.items.map((it) => it.product));
   const uniqueProds = [...new Set([
     ...catalogItems.map((c) => c.name),
-    ...orders.map((o) => o.product)
+    ...itemProducts
   ].filter(Boolean))];
   const uniqueClients = [...new Set(orders.map((o) => o.client).filter(Boolean))];
 
@@ -213,25 +225,58 @@ function getVisibleOrders() {
   const filtered = orders.filter((o) => {
     if (o.status === "Delivered") return false;
     const okStatus = statusFilter === "ALL" || o.status === statusFilter;
+    const itemsText = o.items
+      .map((it) => `${it.product || ""} ${it.description || ""}`)
+      .join(" ")
+      .toLowerCase();
+    const numText = formatOrderNumber(o.orderNumber).toLowerCase();
     const okSearch =
       !term ||
-      (o.product || "").toLowerCase().includes(term) ||
-      (o.description || "").toLowerCase().includes(term) ||
+      numText.includes(term) ||
+      String(o.orderNumber || "").includes(term) ||
       (o.client || "").toLowerCase().includes(term) ||
-      (o.contact || "").toLowerCase().includes(term);
+      (o.contact || "").toLowerCase().includes(term) ||
+      (o.notes || "").toLowerCase().includes(term) ||
+      itemsText.includes(term);
     return okStatus && okSearch;
   });
 
   if (sortByDeliveryDate) {
     filtered.sort((a, b) => {
-      if (!a.date && !b.date) return (a.client || "").localeCompare(b.client || "");
+      if (!a.date && !b.date) return (b.orderNumber || 0) - (a.orderNumber || 0);
       if (!a.date) return 1;
       if (!b.date) return -1;
       return a.date.localeCompare(b.date);
     });
+  } else {
+    filtered.sort((a, b) => (b.orderNumber || 0) - (a.orderNumber || 0));
   }
 
   return filtered;
+}
+
+function renderOrderItemsHtml(order) {
+  const rows = order.items
+    .map((it) => {
+      const sub = calcItemSubtotal(it);
+      const qtyLabel = it.quantity > 0 ? `${formatQuantity(it.quantity)}×` : "";
+      const descHtml = it.description ? `<span class="order-item-desc">${escapeHtml(it.description)}</span>` : "";
+      const subHtml = sub > 0
+        ? escapeHtml(formatMoney(sub))
+        : (it.price > 0 ? escapeHtml(formatMoney(it.price)) : "—");
+      return `
+        <li class="order-item-row">
+          <div class="order-item-main">
+            <span class="order-item-title">${qtyLabel ? `<span class="order-item-qty">${escapeHtml(qtyLabel)}</span>` : ""}${escapeHtml(it.product || "Sin producto")}</span>
+            ${descHtml}
+          </div>
+          <span class="order-item-price">${subHtml}</span>
+        </li>`;
+    })
+    .join("");
+
+  const notesHtml = order.notes ? `<div class="order-notes-sub">Nota: ${escapeHtml(order.notes)}</div>` : "";
+  return `<ul class="order-items-list">${rows}</ul>${notesHtml}`;
 }
 
 function renderOrdersTable() {
@@ -245,13 +290,13 @@ function renderOrdersTable() {
     if (deliveredCount > 0 && !ordersSearch.value.trim() && ordersStatusFilter.value === "ALL") {
       ordersTableBody.innerHTML = `
         <tr>
-          <td colspan="10" class="empty-state">
+          <td colspan="8" class="empty-state">
             No hay pedidos activos pendientes. Tenés <strong>${deliveredCount}</strong> en el
             <a href="./historial.html" style="text-decoration:underline;font-weight:700;color:var(--delivered-ink);">historial de entregados</a>.
           </td>
         </tr>`;
     } else {
-      ordersTableBody.innerHTML = `<tr><td colspan="10" class="empty-state">No hay pedidos activos que coincidan con el filtro actual.</td></tr>`;
+      ordersTableBody.innerHTML = `<tr><td colspan="8" class="empty-state">No hay pedidos activos que coincidan con el filtro actual.</td></tr>`;
     }
     return;
   }
@@ -259,8 +304,6 @@ function renderOrdersTable() {
   ordersTableBody.innerHTML = visible
     .map((o) => {
       const days = computeDaysLeft(o.date, o.status);
-      const priceVal = Number(o.price) || 0;
-      const qtyVal = Number(o.quantity) || 0;
       const totalVal = calcOrderTotal(o);
       const webTag = o.source === "web" ? `<span class="source-tag">Web</span>` : "";
       const contactHtml = o.contact ? `<span class="contact-sub">${escapeHtml(o.contact)}</span>` : "";
@@ -275,22 +318,23 @@ function renderOrdersTable() {
 
       return `
         <tr data-id="${escapeHtml(o.id)}">
+          <td>
+            <span class="order-num-badge">${escapeHtml(formatOrderNumber(o.orderNumber))}</span>
+            ${webTag}
+          </td>
           <td class="mono">${escapeHtml(formatShortDate(o.date))}</td>
           <td><span class="days-pill ${days.kind}">${escapeHtml(days.text || "—")}</span></td>
-          <td><strong>${escapeHtml(o.product || "—")}</strong>${webTag}</td>
-          <td style="max-width:250px;color:var(--ink-muted);">${escapeHtml(o.description || "—")}</td>
+          <td>
+            <strong>${escapeHtml(o.client || "—")}</strong>
+            ${contactHtml}
+          </td>
+          <td>${renderOrderItemsHtml(o)}</td>
           <td>
             <select class="status-select status-${escapeHtml(o.status)}" data-order-status="${escapeHtml(o.id)}">
               ${statusOptions}
             </select>
           </td>
-          <td class="mono">${escapeHtml(formatMoneyOrDash(priceVal))}</td>
-          <td class="mono">${escapeHtml(qtyVal > 0 ? formatQuantity(qtyVal) : "—")}</td>
           <td class="mono"><strong>${escapeHtml(formatMoneyOrDash(totalVal))}</strong></td>
-          <td>
-            <strong>${escapeHtml(o.client || "—")}</strong>
-            ${contactHtml}
-          </td>
           <td>
             <div class="row-actions">
               ${deliveredBtnHtml}
@@ -315,7 +359,7 @@ function renderOrdersTable() {
         });
         showToast(
           newStatus === "Delivered"
-            ? "Pedido movido al historial de entregados"
+            ? `Pedido ${formatOrderNumber(existing.orderNumber)} movido al historial`
             : `Estado actualizado a ${newStatus}`
         );
       } catch (err) {
@@ -337,7 +381,7 @@ function renderOrdersTable() {
           status: "Delivered",
           updatedAt: serverTimestamp()
         });
-        showToast(`"${order.product || order.client || "Pedido"}" marcado como entregado y movido al historial`);
+        showToast(`Pedido ${formatOrderNumber(order.orderNumber)} marcado como entregado`);
       } catch (err) {
         console.error(err);
         btn.disabled = false;
@@ -442,24 +486,22 @@ function renderAdminCatalog() {
   });
 }
 
-function buildOrderPayload(data, isUpdate = false) {
-  const payload = {
+function buildOrderPayload(data, existingOrder = null) {
+  const cleanItems = (data.items || []).map(normalizeOrderItem);
+  const total = calcItemsTotal(cleanItems);
+  return {
+    orderNumber: Math.max(1, Math.min(1000000, Math.floor(Number(data.orderNumber) || 1))),
     date: String(data.date || "").slice(0, 10),
-    product: String(data.product || "").slice(0, 140),
-    description: String(data.description || "").slice(0, 1000),
-    status: ORDER_STATUSES.includes(data.status) ? data.status : "Pending",
-    price: Math.max(0, Number(data.price) || 0),
-    quantity: Math.max(0, Number(data.quantity) || 0),
     client: String(data.client || "").slice(0, 100),
     contact: String(data.contact || "").slice(0, 120),
-    catalogId: String(data.catalogId || "").slice(0, 120),
+    status: ORDER_STATUSES.includes(data.status) ? data.status : "Pending",
+    notes: String(data.notes || "").slice(0, 1000),
+    items: cleanItems,
+    total,
+    source: existingOrder?.source || data.source || "admin",
+    createdAt: existingOrder?.createdAt || serverTimestamp(),
     updatedAt: serverTimestamp()
   };
-  if (!isUpdate) {
-    payload.source = data.source || "admin";
-    payload.createdAt = serverTimestamp();
-  }
-  return payload;
 }
 
 function buildCatalogPayload(data, isUpdate = false) {
@@ -484,39 +526,119 @@ function buildCatalogPayload(data, isUpdate = false) {
 }
 
 function updateOrderFormTotal() {
-  const price = Math.max(0, Number(fPrice.value) || 0);
-  const qty = Math.max(0, Number(fQuantity.value) || 0);
-  const total = price * (qty || (price > 0 ? 1 : 0));
+  const total = calcItemsTotal(modalItems);
+  const totalUnits = modalItems.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+  fItemsSummary.textContent = `${modalItems.length} ${modalItems.length === 1 ? "producto" : "productos"} · ${formatQuantity(totalUnits)} u.`;
   fTotalPreview.textContent = formatMoney(total) || "$ 0";
+}
+
+function renderModalItems() {
+  adminItemsContainer.innerHTML = modalItems
+    .map((it, idx) => {
+      const sub = calcItemSubtotal(it);
+      return `
+        <div class="item-editor-card" data-idx="${idx}">
+          <div class="item-editor-top">
+            <input type="text" class="input adm-item-prod" data-idx="${idx}" list="productSuggestions" maxlength="140" value="${escapeHtml(it.product)}" placeholder="Producto (ej: Mate motor)" />
+            ${modalItems.length > 1 ? `<button type="button" class="btn btn-danger-outline btn-sm adm-item-del" data-idx="${idx}">Quitar</button>` : ""}
+          </div>
+          <input type="text" class="input adm-item-desc" data-idx="${idx}" maxlength="500" value="${escapeHtml(it.description)}" placeholder="Descripción / color / detalles (opcional)" />
+          <div class="item-editor-nums">
+            <div class="field">
+              <label>Precio unit. ($)</label>
+              <input type="number" class="input adm-item-price" data-idx="${idx}" min="0" step="any" value="${it.price > 0 ? escapeHtml(String(it.price)) : ""}" placeholder="0" />
+            </div>
+            <div class="field">
+              <label>Cantidad</label>
+              <input type="number" class="input adm-item-qty" data-idx="${idx}" min="0" step="any" value="${escapeHtml(String(it.quantity))}" />
+            </div>
+            <span class="item-subtotal-pill">${escapeHtml(formatMoney(sub) || "$ 0")}</span>
+          </div>
+        </div>`;
+    })
+    .join("");
+
+  adminItemsContainer.querySelectorAll(".adm-item-prod").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      const idx = Number(inp.dataset.idx);
+      modalItems[idx].product = inp.value;
+    });
+    inp.addEventListener("change", () => {
+      const idx = Number(inp.dataset.idx);
+      const match = catalogItems.find((c) => c.name.toLowerCase() === inp.value.trim().toLowerCase());
+      if (match && match.price > 0 && !(Number(modalItems[idx].price) > 0)) {
+        modalItems[idx].price = Number(match.price);
+        modalItems[idx].catalogId = match.id;
+        renderModalItems();
+      }
+    });
+  });
+
+  adminItemsContainer.querySelectorAll(".adm-item-desc").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      modalItems[Number(inp.dataset.idx)].description = inp.value;
+    });
+  });
+
+  adminItemsContainer.querySelectorAll(".adm-item-price").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      const idx = Number(inp.dataset.idx);
+      modalItems[idx].price = Math.max(0, Number(inp.value) || 0);
+      const card = inp.closest(".item-editor-card");
+      card.querySelector(".item-subtotal-pill").textContent = formatMoney(calcItemSubtotal(modalItems[idx])) || "$ 0";
+      updateOrderFormTotal();
+    });
+  });
+
+  adminItemsContainer.querySelectorAll(".adm-item-qty").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      const idx = Number(inp.dataset.idx);
+      modalItems[idx].quantity = Math.max(0, Number(inp.value) || 0);
+      const card = inp.closest(".item-editor-card");
+      card.querySelector(".item-subtotal-pill").textContent = formatMoney(calcItemSubtotal(modalItems[idx])) || "$ 0";
+      updateOrderFormTotal();
+    });
+  });
+
+  adminItemsContainer.querySelectorAll(".adm-item-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      modalItems.splice(Number(btn.dataset.idx), 1);
+      renderModalItems();
+    });
+  });
+
+  updateOrderFormTotal();
 }
 
 function openAdminOrderModal(order = null) {
   adminOrderForm.reset();
   if (order) {
-    adminOrderModalTitle.textContent = "Editar Pedido";
+    adminOrderModalTitle.textContent = `Editar Pedido ${formatOrderNumber(order.orderNumber)}`;
     saveAdminOrderBtn.textContent = "Guardar Cambios";
     keepAddingWrap.classList.add("hidden");
     editOrderId.value = order.id;
+    fOrderNumber.value = String(order.orderNumber > 0 ? order.orderNumber : getMaxOrderNumber() + 1);
     fDate.value = order.date || "";
-    fProduct.value = order.product || "";
-    fDescription.value = order.description || "";
     fStatus.value = order.status || "Pending";
-    fPrice.value = order.price > 0 ? String(order.price) : "";
-    fQuantity.value = order.quantity > 0 ? String(order.quantity) : (order.price > 0 ? "1" : "");
     fClient.value = order.client || "";
     fContact.value = order.contact || "";
+    fNotes.value = order.notes || "";
+    modalItems = order.items.map(normalizeOrderItem);
   } else {
-    adminOrderModalTitle.textContent = "Nuevo Pedido";
+    const nextNum = getMaxOrderNumber() + 1;
+    adminOrderModalTitle.textContent = `Nuevo Pedido (#${String(nextNum).padStart(3, "0")})`;
     saveAdminOrderBtn.textContent = "Agregar Pedido";
     keepAddingWrap.classList.remove("hidden");
     editOrderId.value = "";
+    fOrderNumber.value = String(nextNum);
     fDate.value = todayISO();
     fStatus.value = "Pending";
-    fQuantity.value = "1";
+    fNotes.value = "";
+    modalItems = [normalizeOrderItem({ product: "", description: "", price: 0, quantity: 1, catalogId: "" })];
   }
-  updateOrderFormTotal();
+  renderModalItems();
   adminOrderModal.classList.add("open");
-  fProduct.focus();
+  fClient.focus();
 }
 
 function openAdminProductModal(item = null) {
@@ -563,10 +685,13 @@ async function seedAllStarterData() {
   btn.textContent = "Importando...";
   try {
     const batch = writeBatch(db);
+    let maxNum = 0;
     for (const order of INITIAL_EXCEL_ORDERS) {
       const ref = doc(collection(db, "orders"));
-      batch.set(ref, buildOrderPayload(order, false));
+      batch.set(ref, buildOrderPayload(order, null));
+      if (order.orderNumber > maxNum) maxNum = order.orderNumber;
     }
+    batch.set(doc(db, "counters", "orders"), { lastNumber: maxNum });
     if (catalogItems.length === 0) {
       for (const item of STARTER_CATALOG) {
         const ref = doc(collection(db, "catalog"));
@@ -574,7 +699,7 @@ async function seedAllStarterData() {
       }
     }
     await batch.commit();
-    showToast("Se importaron tus pedidos del Excel y el catálogo base");
+    showToast("Se importaron tus pedidos numerados y el catálogo base");
   } catch (err) {
     console.error(err);
     showToast("No se pudo importar: " + (err.message || "error de permisos"), true);
@@ -592,7 +717,7 @@ function startListeners() {
   unsubOrders = onSnapshot(
     ordersQ,
     (snap) => {
-      orders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      orders = snap.docs.map((d) => normalizeOrder({ id: d.id, ...d.data() }));
       renderOrdersTable();
     },
     (err) => {
@@ -637,6 +762,10 @@ tabCatalog.addEventListener("click", () => {
 
 // Toolbar & filters
 document.getElementById("btnNewOrder").addEventListener("click", () => openAdminOrderModal(null));
+document.getElementById("btnAddAdminItem").addEventListener("click", () => {
+  modalItems.push(normalizeOrderItem({ product: "", description: "", price: 0, quantity: 1, catalogId: "" }));
+  renderModalItems();
+});
 document.getElementById("btnNewProduct").addEventListener("click", () => openAdminProductModal(null));
 document.getElementById("btnSeedStarterData").addEventListener("click", seedAllStarterData);
 document.getElementById("btnSeedCatalogOnly").addEventListener("click", seedStarterCatalog);
@@ -648,13 +777,24 @@ document.getElementById("btnSortDate").addEventListener("click", (e) => {
 });
 
 document.getElementById("btnExportCsv").addEventListener("click", () => {
-  const rows = [["Date", "Days Left", "Product", "Description", "Status", "Price", "Cantidad", "Total", "Client", "Contact"]];
+  const rows = [["Pedido #", "Fecha", "Days Left", "Cliente", "Contacto", "Estado", "Productos", "Notas", "Total ($)"]];
   for (const o of getVisibleOrders()) {
     const days = computeDaysLeft(o.date, o.status).text;
-    const price = Number(o.price) || 0;
-    const qty = Number(o.quantity) || 0;
     const total = calcOrderTotal(o);
-    rows.push([o.date || "", days, o.product || "", o.description || "", o.status || "", price || "", qty || "", total || "", o.client || "", o.contact || ""]);
+    const itemsDetail = o.items
+      .map((it) => `${it.quantity}x ${it.product}${it.description ? ` (${it.description})` : ""}${it.price > 0 ? ` [$${it.price}]` : ""}`)
+      .join(" | ");
+    rows.push([
+      formatOrderNumber(o.orderNumber),
+      o.date || "",
+      days,
+      o.client || "",
+      o.contact || "",
+      o.status || "",
+      itemsDetail,
+      o.notes || "",
+      total || ""
+    ]);
   }
   const csv = "\uFEFF" + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -681,62 +821,65 @@ document.querySelectorAll("[data-qdate]").forEach((btn) => {
   });
 });
 
-fPrice.addEventListener("input", updateOrderFormTotal);
-fQuantity.addEventListener("input", updateOrderFormTotal);
-
-fProduct.addEventListener("change", () => {
-  if (!editOrderId.value && !fPrice.value) {
-    const match = catalogItems.find((c) => c.name.toLowerCase() === fProduct.value.trim().toLowerCase());
-    if (match && match.price > 0) {
-      fPrice.value = String(match.price);
-      updateOrderFormTotal();
-    }
-  }
-});
-
 adminOrderForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const id = editOrderId.value;
-  const product = fProduct.value.trim();
   const client = fClient.value.trim();
+  const cleanItems = modalItems
+    .map(normalizeOrderItem)
+    .filter((it) => it.product.trim() !== "" || it.description.trim() !== "" || it.price > 0);
 
-  if (!product && !client) {
-    showToast("Completá al menos el Producto o el Cliente.", true);
+  if (cleanItems.length === 0) {
+    cleanItems.push(normalizeOrderItem({ product: client ? "A definir" : "", quantity: 1 }));
+  }
+
+  const hasContent = cleanItems.some((it) => it.product.trim() !== "") || client !== "";
+  if (!hasContent) {
+    showToast("Completá al menos el Cliente o un Producto.", true);
     return;
   }
 
-  const price = Math.max(0, Number(fPrice.value) || 0);
-  const quantity = fQuantity.value === "" ? (price > 0 ? 1 : 0) : Math.max(0, Number(fQuantity.value) || 0);
+  const requestedNum = Math.max(1, Math.floor(Number(fOrderNumber.value) || 0));
 
   const payloadInput = {
+    orderNumber: requestedNum,
     date: fDate.value.trim(),
-    product,
-    description: fDescription.value.trim(),
-    status: fStatus.value,
-    price,
-    quantity,
     client,
-    contact: fContact.value.trim()
+    contact: fContact.value.trim(),
+    status: fStatus.value,
+    notes: fNotes.value.trim(),
+    items: cleanItems
   };
 
   saveAdminOrderBtn.disabled = true;
   try {
     if (id) {
       const existing = orders.find((o) => o.id === id);
-      await updateDoc(doc(db, "orders", id), buildOrderPayload({ ...payloadInput, catalogId: existing?.catalogId || "" }, true));
-      showToast("Pedido actualizado");
+      await setDoc(doc(db, "orders", id), buildOrderPayload(payloadInput, existing));
+      showToast(`Pedido ${formatOrderNumber(requestedNum)} actualizado`);
       adminOrderModal.classList.remove("open");
     } else {
-      await addDoc(collection(db, "orders"), buildOrderPayload(payloadInput, false));
-      showToast("Pedido agregado");
+      let finalNumber = requestedNum;
+      const autoSuggested = getMaxOrderNumber() + 1;
+      if (requestedNum === autoSuggested) {
+        finalNumber = await allocateNextOrderNumber(getMaxOrderNumber());
+      } else {
+        await setDoc(doc(db, "counters", "orders"), { lastNumber: Math.max(requestedNum, getMaxOrderNumber()) });
+      }
+      payloadInput.orderNumber = finalNumber;
+      await addDoc(collection(db, "orders"), buildOrderPayload(payloadInput, null));
+      showToast(`Pedido ${formatOrderNumber(finalNumber)} agregado`);
+
       if (fKeepAdding.checked) {
-        fProduct.value = "";
-        fDescription.value = "";
-        fPrice.value = "";
-        fQuantity.value = "1";
+        const nextNum = Math.max(finalNumber, getMaxOrderNumber()) + 1;
+        fOrderNumber.value = String(nextNum);
+        fClient.value = "";
+        fContact.value = "";
+        fNotes.value = "";
         fStatus.value = "Pending";
-        updateOrderFormTotal();
-        fProduct.focus();
+        modalItems = [normalizeOrderItem({ product: "", description: "", price: 0, quantity: 1, catalogId: "" })];
+        renderModalItems();
+        fClient.focus();
       } else {
         adminOrderModal.classList.remove("open");
       }

@@ -38,21 +38,36 @@ rules_version = '2';
 //   - createdAt: timestamp (required, == request.time on create, immutable on update)
 //   - updatedAt: timestamp (required, == request.time on create & update)
 //
+// Collection: counters
+// Document ID: orders (only 'orders' counterId is usable; all others denied)
+// Access: Public get (no PII, sequential order counter); list & delete are admin-only.
+//         Public create initializes lastNumber == 1; public update increments by +1 (<= 1000000).
+//         Admin create/update allows lastNumber in 1..1000000.
+// Exact Fields:
+//   - lastNumber: int (required, 1..1000000)
+//
 // Collection: orders
 // Document ID: {orderId}
 // Access: Public create for validated 'Pending' web orders only (write-only for
 //         public to protect client PII); get, list, update, delete are admin-only.
-// Exact Fields:
+//         Admin updates allow either status-only patches (compatible with legacy
+//         single-product orders) or full validated multi-product order documents.
+// Exact Fields (new multi-product orders):
+//   - orderNumber: int (required, 1..1000000)
 //   - date: string (required, 0..10 chars, "" or YYYY-MM-DD in 2000-2099)
-//   - product: string (required, 1..140 public / 0..140 admin; product or client non-empty for admin)
-//   - description: string (required, 0..1000 chars)
-//   - status: string (required, 'Pending' public / ['Pending','Processing','Ready','Delivered'] admin)
-//   - price: number (int | float, required, 0..10000000)
-//   - quantity: number (int | float, required, 1..500 public / 0..10000 admin)
 //   - client: string (required, 1..100 public / 0..100 admin)
 //   - contact: string (required, 1..120 public / 0..120 admin)
+//   - status: string (required, 'Pending' public / ['Pending','Processing','Ready','Delivered'] admin)
+//   - notes: string (required, 0..1000 chars)
+//   - items: list (required, 1..50 items; items[0] map with exact keys
+//            ['product','description','price','quantity','catalogId'])
+//       - product: string (1..140 public / 0..140 admin)
+//       - description: string (0..500 chars)
+//       - price: number (int | float, 0..10000000)
+//       - quantity: number (int | float, 1..500 public / 0..10000 admin)
+//       - catalogId: string (0..120 chars)
+//   - total: number (int | float, required, 0..100000000)
 //   - source: string (required, 'web' public / ['web','admin'] admin, immutable on update)
-//   - catalogId: string (required, 0..120 chars)
 //   - createdAt: timestamp (required, == request.time on create, immutable on update)
 //   - updatedAt: timestamp (required, == request.time on create & update)
 //
@@ -181,54 +196,92 @@ service cloud.firestore {
           d.createdAt == resource.data.createdAt));
     }
 
+    function validOrderCounter(counterId, isCreate) {
+      let d = request.resource.data;
+      return counterId == 'orders' &&
+        hasExactFields(['lastNumber']) &&
+        d.lastNumber is int &&
+        d.lastNumber <= 1000000 &&
+        (isCreate
+          ? (isAdmin() ? d.lastNumber >= 1 : d.lastNumber == 1)
+          : ((isAdmin() && d.lastNumber >= 1) ||
+             (resource != null &&
+              resource.data.lastNumber is int &&
+              d.lastNumber == resource.data.lastNumber + 1)));
+    }
+
     function hasExactOrderKeys() {
       return hasExactFields([
-        'date', 'product', 'description', 'status', 'price', 'quantity',
-        'client', 'contact', 'source', 'catalogId', 'createdAt', 'updatedAt'
+        'orderNumber', 'date', 'client', 'contact', 'status', 'notes',
+        'items', 'total', 'source', 'createdAt', 'updatedAt'
       ]);
     }
 
-    function validPublicOrderCreate() {
+    function validOrderItem(item, isPublic) {
+      let itemKeys = ['product', 'description', 'price', 'quantity', 'catalogId'];
+      return item is map &&
+        item.keys().hasAll(itemKeys) &&
+        item.keys().hasOnly(itemKeys) &&
+        isStringInRange(item.product, isPublic ? 1 : 0, 140) &&
+        isStringInRange(item.description, 0, 500) &&
+        isNumberInRange(item.price, 0, 10000000) &&
+        isNumberInRange(item.quantity, isPublic ? 1 : 0, isPublic ? 500 : 10000) &&
+        isStringInRange(item.catalogId, 0, 120);
+    }
+
+    function validPublicOrderDoc() {
       let d = request.resource.data;
       return hasExactOrderKeys() &&
+        d.orderNumber is int && d.orderNumber >= 1 && d.orderNumber <= 1000000 &&
         isValidOrderDate(d.date) &&
-        isStringInRange(d.product, 1, 140) &&
-        isStringInRange(d.description, 0, 1000) &&
-        d.status is string && d.status == 'Pending' &&
-        isNumberInRange(d.price, 0, 10000000) &&
-        isNumberInRange(d.quantity, 1, 500) &&
         isStringInRange(d.client, 1, 100) &&
         isStringInRange(d.contact, 1, 120) &&
+        d.status is string && d.status == 'Pending' &&
+        isStringInRange(d.notes, 0, 1000) &&
+        d.items is list && d.items.size() >= 1 && d.items.size() <= 50 &&
+        validOrderItem(d.items[0], true) &&
+        isNumberInRange(d.total, 0, 100000000) &&
         d.source is string && d.source == 'web' &&
-        isStringInRange(d.catalogId, 0, 120) &&
         d.createdAt is timestamp && d.createdAt == request.time &&
         d.updatedAt is timestamp && d.updatedAt == request.time;
     }
 
-    function validAdminOrder(isCreate) {
+    function validAdminOrderDoc(isCreate) {
       let d = request.resource.data;
       return hasExactOrderKeys() &&
+        d.orderNumber is int && d.orderNumber >= 1 && d.orderNumber <= 1000000 &&
         isValidOrderDate(d.date) &&
-        isStringInRange(d.product, 0, 140) &&
-        isStringInRange(d.description, 0, 1000) &&
         isStringInRange(d.client, 0, 100) &&
-        (d.product.size() > 0 || d.client.size() > 0) &&
+        isStringInRange(d.contact, 0, 120) &&
         d.status is string &&
         d.status in ['Pending', 'Processing', 'Ready', 'Delivered'] &&
-        isNumberInRange(d.price, 0, 10000000) &&
-        isNumberInRange(d.quantity, 0, 10000) &&
-        isStringInRange(d.contact, 0, 120) &&
+        isStringInRange(d.notes, 0, 1000) &&
+        d.items is list && d.items.size() >= 1 && d.items.size() <= 50 &&
+        validOrderItem(d.items[0], false) &&
+        isNumberInRange(d.total, 0, 100000000) &&
         d.source is string && d.source in ['web', 'admin'] &&
-        isStringInRange(d.catalogId, 0, 120) &&
         d.createdAt is timestamp &&
         d.updatedAt is timestamp &&
         d.updatedAt == request.time &&
         ((isCreate && d.createdAt == request.time) ||
          (!isCreate &&
           resource != null &&
-          areImmutableFieldsUnchanged(['createdAt', 'source']) &&
-          d.createdAt == resource.data.createdAt &&
-          d.source == resource.data.source));
+          (!('createdAt' in resource.data)
+            ? d.createdAt == request.time
+            : (areImmutableFieldsUnchanged(['createdAt']) &&
+               d.createdAt == resource.data.createdAt)) &&
+          (!('source' in resource.data) ||
+           (areImmutableFieldsUnchanged(['source']) &&
+            d.source == resource.data.source))));
+    }
+
+    function validStatusOnlyOrderUpdate() {
+      return resource != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+        request.resource.data.status is string &&
+        request.resource.data.status in ['Pending', 'Processing', 'Ready', 'Delivered'] &&
+        request.resource.data.updatedAt is timestamp &&
+        request.resource.data.updatedAt == request.time;
     }
 
     // ========================================================================
@@ -251,11 +304,17 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /counters/{counterId} {
+      allow get: if counterId == 'orders';
+      allow list, delete: if isAdmin();
+      allow create: if validOrderCounter(counterId, true);
+      allow update: if validOrderCounter(counterId, false);
+    }
+
     match /orders/{orderId} {
-      allow get, list: if isAdmin();
-      allow create: if (isAdmin() && validAdminOrder(true)) || validPublicOrderCreate();
-      allow update: if isAdmin() && validAdminOrder(false);
-      allow delete: if isAdmin();
+      allow get, list, delete: if isAdmin();
+      allow create: if (isAdmin() && validAdminOrderDoc(true)) || validPublicOrderDoc();
+      allow update: if isAdmin() && (validStatusOnlyOrderUpdate() || validAdminOrderDoc(false));
     }
 
     // ========================================================================

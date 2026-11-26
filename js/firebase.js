@@ -1,5 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+import {
+  getFirestore,
+  doc,
+  runTransaction
+} from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-analytics.js";
 
@@ -40,11 +44,92 @@ export function formatMoneyOrDash(value) {
   return formatted || "—";
 }
 
-export function calcOrderTotal(order) {
-  const price = Number(order?.price) || 0;
+export function formatOrderNumber(num) {
+  const n = Math.floor(Number(num) || 0);
+  if (n <= 0) return "#—";
+  return "#" + String(n).padStart(3, "0");
+}
+
+export function normalizeOrderItem(item = {}) {
+  return {
+    product: String(item.product || "").slice(0, 140),
+    description: String(item.description || "").slice(0, 500),
+    price: Math.max(0, Number(item.price) || 0),
+    quantity: Math.max(0, Number(item.quantity) || 0),
+    catalogId: String(item.catalogId || "").slice(0, 120)
+  };
+}
+
+export function calcItemSubtotal(item) {
+  const price = Math.max(0, Number(item?.price) || 0);
   if (price <= 0) return 0;
-  const qty = Number(order?.quantity) || 0;
+  const qty = Math.max(0, Number(item?.quantity) || 0);
   return price * (qty > 0 ? qty : 1);
+}
+
+export function calcItemsTotal(items = []) {
+  return items.reduce((sum, item) => sum + calcItemSubtotal(item), 0);
+}
+
+export function normalizeOrder(raw = {}) {
+  const items = Array.isArray(raw.items) && raw.items.length > 0
+    ? raw.items.map(normalizeOrderItem)
+    : [
+        normalizeOrderItem({
+          product: raw.product || "",
+          description: raw.description || "",
+          price: raw.price || 0,
+          quantity: raw.quantity || 0,
+          catalogId: raw.catalogId || ""
+        })
+      ];
+
+  const computedTotal = calcItemsTotal(items);
+  const total = computedTotal > 0 ? computedTotal : Math.max(0, Number(raw.total) || 0);
+
+  return {
+    ...raw,
+    orderNumber: Math.max(0, Math.floor(Number(raw.orderNumber) || 0)),
+    date: String(raw.date || ""),
+    client: String(raw.client || ""),
+    contact: String(raw.contact || ""),
+    status: ORDER_STATUSES.includes(raw.status) ? raw.status : "Pending",
+    notes: String(raw.notes || ""),
+    items,
+    total
+  };
+}
+
+export function calcOrderTotal(order) {
+  if (!order) return 0;
+  if (Array.isArray(order.items)) {
+    const sum = calcItemsTotal(order.items);
+    return sum > 0 ? sum : Math.max(0, Number(order.total) || 0);
+  }
+  const price = Number(order.price) || 0;
+  if (price <= 0) return 0;
+  const qty = Number(order.quantity) || 0;
+  return price * (qty > 0 ? qty : 1);
+}
+
+export function calcOrderUnits(order) {
+  const normalized = normalizeOrder(order);
+  return normalized.items.reduce((sum, item) => {
+    const q = Math.max(0, Number(item.quantity) || 0);
+    if (q > 0) return sum + q;
+    return item.product || item.price > 0 ? sum + 1 : sum;
+  }, 0);
+}
+
+export async function allocateNextOrderNumber(minFloor = 0) {
+  const counterRef = doc(db, "counters", "orders");
+  return await runTransaction(db, async (tx) => {
+    const snap = await tx.get(counterRef);
+    const current = snap.exists() ? Math.max(0, Math.floor(Number(snap.data().lastNumber) || 0)) : 0;
+    const nextNum = Math.max(current, Math.max(0, Math.floor(Number(minFloor) || 0))) + 1;
+    tx.set(counterRef, { lastNumber: nextNum });
+    return nextNum;
+  });
 }
 
 export function formatTimestampDate(ts) {
@@ -202,87 +287,43 @@ export const STARTER_CATALOG = [
 
 export const INITIAL_EXCEL_ORDERS = [
   {
-    date: "2026-11-23",
-    product: "Mate motor",
-    description: "Color boca",
+    orderNumber: 1,
+    date: "2026-11-27",
+    client: "Papa",
+    contact: "",
     status: "Processing",
-    price: 0,
-    quantity: 1,
-    client: "Papa",
-    contact: "",
+    notes: "Mate motor programado para el 23-nov",
     source: "admin",
-    catalogId: ""
+    items: [
+      { product: "Mate motor", description: "Color boca", price: 0, quantity: 1, catalogId: "" },
+      { product: 'Mate "tuerca"', description: "", price: 0, quantity: 1, catalogId: "" },
+      { product: "Ajedrez jiu-jitzu", description: "Incluye torre + tablero de chapa", price: 0, quantity: 1, catalogId: "" }
+    ]
   },
   {
-    date: "2026-11-27",
-    product: 'Mate "tuerca"',
-    description: "",
-    status: "Pending",
-    price: 0,
-    quantity: 1,
-    client: "Papa",
-    contact: "",
-    source: "admin",
-    catalogId: ""
-  },
-  {
-    date: "2026-11-27",
-    product: "Ajedrez jiu-jitzu",
-    description: "Incluye torre + tablero de chapa",
-    status: "Pending",
-    price: 0,
-    quantity: 1,
-    client: "Papa",
-    contact: "",
-    source: "admin",
-    catalogId: ""
-  },
-  {
+    orderNumber: 2,
     date: "",
-    product: "",
-    description: "",
-    status: "Pending",
-    price: 0,
-    quantity: 0,
     client: "Mishelle",
     contact: "",
+    status: "Pending",
+    notes: "",
     source: "admin",
-    catalogId: ""
+    items: [
+      { product: "Producto 1 (a definir)", description: "", price: 0, quantity: 1, catalogId: "" },
+      { product: "Producto 2 (a definir)", description: "", price: 0, quantity: 1, catalogId: "" },
+      { product: "Producto 3 (a definir)", description: "", price: 0, quantity: 1, catalogId: "" }
+    ]
   },
   {
+    orderNumber: 3,
     date: "",
-    product: "",
-    description: "",
-    status: "Pending",
-    price: 0,
-    quantity: 0,
-    client: "Mishelle",
-    contact: "",
-    source: "admin",
-    catalogId: ""
-  },
-  {
-    date: "",
-    product: "",
-    description: "",
-    status: "Pending",
-    price: 0,
-    quantity: 0,
-    client: "Mishelle",
-    contact: "",
-    source: "admin",
-    catalogId: ""
-  },
-  {
-    date: "",
-    product: "",
-    description: "",
-    status: "Pending",
-    price: 0,
-    quantity: 0,
     client: "Tamara",
     contact: "",
+    status: "Pending",
+    notes: "",
     source: "admin",
-    catalogId: ""
+    items: [
+      { product: "Producto (a definir)", description: "", price: 0, quantity: 1, catalogId: "" }
+    ]
   }
 ];

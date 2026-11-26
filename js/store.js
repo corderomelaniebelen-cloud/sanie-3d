@@ -1,11 +1,15 @@
 import {
   db,
   STARTER_CATALOG,
+  allocateNextOrderNumber,
+  formatOrderNumber,
   formatMoney,
+  calcItemsTotal,
+  calcItemSubtotal,
   todayISO,
   escapeHtml
-} from "./firebase.js";
-import { getProductIllustration } from "./icons.js";
+} from "./firebase.js?v=20261126";
+import { getProductIllustration } from "./icons.js?v=20261126";
 import {
   collection,
   addDoc,
@@ -26,14 +30,12 @@ const orderModal = document.getElementById("orderModal");
 const orderModalTitle = document.getElementById("orderModalTitle");
 const publicOrderForm = document.getElementById("publicOrderForm");
 const orderSuccessView = document.getElementById("orderSuccessView");
+const orderSuccessTitle = document.getElementById("orderSuccessTitle");
 const orderSuccessSummary = document.getElementById("orderSuccessSummary");
 
-const orderCatalogId = document.getElementById("orderCatalogId");
-const orderUnitPrice = document.getElementById("orderUnitPrice");
-const orderProduct = document.getElementById("orderProduct");
-const orderQty = document.getElementById("orderQty");
+const publicItemsContainer = document.getElementById("publicItemsContainer");
 const orderDate = document.getElementById("orderDate");
-const orderDesc = document.getElementById("orderDesc");
+const orderNotes = document.getElementById("orderNotes");
 const orderClient = document.getElementById("orderClient");
 const orderContact = document.getElementById("orderContact");
 const orderPriceBreakdown = document.getElementById("orderPriceBreakdown");
@@ -43,6 +45,7 @@ const hpWebsite = document.getElementById("hpWebsite");
 
 let allProducts = [];
 let activeCategory = "Todos";
+let draftItems = [];
 
 heroIllustration.innerHTML = getProductIllustration("mate-motor", "Mates");
 
@@ -137,19 +140,162 @@ function renderCatalog() {
   });
 }
 
-function updateOrderPreview() {
-  const unit = Number(orderUnitPrice.value) || 0;
-  let qty = Math.floor(Number(orderQty.value) || 1);
-  if (qty < 1) qty = 1;
-  if (qty > 500) qty = 500;
-
-  if (unit <= 0) {
-    orderPriceBreakdown.textContent = "Precio: A cotizar según archivo/colores";
-    orderTotalDisplay.textContent = `${qty} u. · A cotizar`;
-  } else {
-    orderPriceBreakdown.textContent = `${formatMoney(unit)} × ${qty} u.`;
-    orderTotalDisplay.textContent = formatMoney(unit * qty);
+function makeDraftFromProduct(product = null) {
+  if (!product) {
+    return {
+      selectedId: "__custom__",
+      catalogId: "",
+      product: "",
+      description: "",
+      price: 0,
+      quantity: 1
+    };
   }
+  return {
+    selectedId: product.id,
+    catalogId: product.id.startsWith("starter-") ? "" : product.id,
+    product: product.name,
+    description: "",
+    price: Number(product.price) || 0,
+    quantity: 1
+  };
+}
+
+function updateDraftSummary() {
+  const total = calcItemsTotal(draftItems);
+  const totalUnits = draftItems.reduce((acc, it) => acc + Math.max(1, Number(it.quantity) || 1), 0);
+  const hasQuoteItems = draftItems.some((it) => (Number(it.price) || 0) <= 0);
+
+  orderPriceBreakdown.textContent = `${draftItems.length} ${draftItems.length === 1 ? "producto" : "productos"} · ${totalUnits} u.`;
+  if (total <= 0) {
+    orderTotalDisplay.textContent = "A cotizar";
+  } else {
+    orderTotalDisplay.textContent = hasQuoteItems
+      ? `${formatMoney(total)} + a cotizar`
+      : formatMoney(total);
+  }
+}
+
+function renderPublicDraftItems() {
+  const catalogOptions = allProducts
+    .map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}${p.price > 0 ? ` (${escapeHtml(formatMoney(p.price))})` : " (A cotizar)"}</option>`)
+    .join("");
+
+  publicItemsContainer.innerHTML = draftItems
+    .map((item, idx) => {
+      const isCustom = item.selectedId === "__custom__" || !allProducts.some((p) => p.id === item.selectedId);
+      const sub = calcItemSubtotal(item);
+      const subText = sub > 0 ? formatMoney(sub) : "A cotizar";
+
+      return `
+        <div class="item-editor-card" data-idx="${idx}">
+          <div class="item-editor-top">
+            <select class="select pub-item-select" data-idx="${idx}">
+              ${catalogOptions}
+              <option value="__custom__" ${isCustom ? "selected" : ""}>Pieza / diseño a medida...</option>
+            </select>
+            ${draftItems.length > 1 ? `<button type="button" class="btn btn-danger-outline btn-sm pub-item-remove" data-idx="${idx}" title="Quitar">Quitar</button>` : ""}
+          </div>
+
+          <div class="field ${isCustom ? "" : "hidden"} pub-custom-name-wrap">
+            <label>Nombre del producto o pieza</label>
+            <input type="text" class="input pub-item-name" data-idx="${idx}" maxlength="140" value="${escapeHtml(item.product)}" placeholder="Ej: Soporte auricular / Llavero personalizado" ${isCustom ? "required" : ""} />
+          </div>
+
+          <div class="field">
+            <label>Colores o personalización (opcional)</label>
+            <input type="text" class="input pub-item-desc" data-idx="${idx}" maxlength="500" value="${escapeHtml(item.description)}" placeholder="Ej: Color Boca, nombre grabado, medidas..." />
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div class="qty-stepper">
+              <button type="button" class="pub-qty-minus" data-idx="${idx}" aria-label="Restar">−</button>
+              <input type="number" class="pub-item-qty" data-idx="${idx}" min="1" max="500" step="1" value="${escapeHtml(String(item.quantity))}" required />
+              <button type="button" class="pub-qty-plus" data-idx="${idx}" aria-label="Sumar">+</button>
+            </div>
+            <span class="item-subtotal-pill">${escapeHtml(subText)}</span>
+          </div>
+        </div>`;
+    })
+    .join("");
+
+  publicItemsContainer.querySelectorAll(".pub-item-select").forEach((sel) => {
+    const idx = Number(sel.dataset.idx);
+    if (draftItems[idx].selectedId && allProducts.some((p) => p.id === draftItems[idx].selectedId)) {
+      sel.value = draftItems[idx].selectedId;
+    } else {
+      sel.value = "__custom__";
+    }
+    sel.addEventListener("change", () => {
+      if (sel.value === "__custom__") {
+        draftItems[idx].selectedId = "__custom__";
+        draftItems[idx].catalogId = "";
+        draftItems[idx].product = "";
+        draftItems[idx].price = 0;
+      } else {
+        const chosen = allProducts.find((p) => p.id === sel.value);
+        if (chosen) {
+          draftItems[idx].selectedId = chosen.id;
+          draftItems[idx].catalogId = chosen.id.startsWith("starter-") ? "" : chosen.id;
+          draftItems[idx].product = chosen.name;
+          draftItems[idx].price = Number(chosen.price) || 0;
+        }
+      }
+      renderPublicDraftItems();
+    });
+  });
+
+  publicItemsContainer.querySelectorAll(".pub-item-name").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      draftItems[Number(inp.dataset.idx)].product = inp.value;
+    });
+  });
+
+  publicItemsContainer.querySelectorAll(".pub-item-desc").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      draftItems[Number(inp.dataset.idx)].description = inp.value;
+    });
+  });
+
+  publicItemsContainer.querySelectorAll(".pub-item-qty").forEach((inp) => {
+    inp.addEventListener("input", () => {
+      const idx = Number(inp.dataset.idx);
+      let q = Math.floor(Number(inp.value) || 1);
+      if (q < 1) q = 1;
+      if (q > 500) q = 500;
+      draftItems[idx].quantity = q;
+      const card = inp.closest(".item-editor-card");
+      const sub = calcItemSubtotal(draftItems[idx]);
+      card.querySelector(".item-subtotal-pill").textContent = sub > 0 ? formatMoney(sub) : "A cotizar";
+      updateDraftSummary();
+    });
+  });
+
+  publicItemsContainer.querySelectorAll(".pub-qty-minus").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.idx);
+      draftItems[idx].quantity = Math.max(1, (Number(draftItems[idx].quantity) || 1) - 1);
+      renderPublicDraftItems();
+    });
+  });
+
+  publicItemsContainer.querySelectorAll(".pub-qty-plus").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.idx);
+      draftItems[idx].quantity = Math.min(500, (Number(draftItems[idx].quantity) || 1) + 1);
+      renderPublicDraftItems();
+    });
+  });
+
+  publicItemsContainer.querySelectorAll(".pub-item-remove").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.idx);
+      draftItems.splice(idx, 1);
+      renderPublicDraftItems();
+    });
+  });
+
+  updateDraftSummary();
 }
 
 function openOrderModal(product = null) {
@@ -158,23 +304,10 @@ function openOrderModal(product = null) {
   publicOrderForm.reset();
   orderDate.min = todayISO();
 
-  if (product) {
-    orderModalTitle.textContent = `Encargar: ${product.name}`;
-    orderCatalogId.value = product.id.startsWith("starter-") ? "" : product.id;
-    orderProduct.value = product.name;
-    orderUnitPrice.value = String(product.price || 0);
-  } else {
-    orderModalTitle.textContent = "Encargar diseño o pieza a medida";
-    orderCatalogId.value = "";
-    orderProduct.value = "";
-    orderProduct.placeholder = "Ej: Soporte auricular / Llavero personalizado";
-    orderUnitPrice.value = "0";
-  }
-
-  orderQty.value = "1";
-  updateOrderPreview();
+  orderModalTitle.textContent = product ? `Encargar: ${product.name}` : "Armar Pedido";
+  draftItems = [makeDraftFromProduct(product)];
+  renderPublicDraftItems();
   orderModal.classList.add("open");
-  (product ? orderDesc : orderProduct).focus();
 }
 
 function closeModal() {
@@ -218,8 +351,14 @@ categoryPills.addEventListener("click", (e) => {
 
 catalogSearch.addEventListener("input", renderCatalog);
 
+document.getElementById("btnAddPublicItem").addEventListener("click", () => {
+  const firstCatalog = allProducts[0] || null;
+  draftItems.push(makeDraftFromProduct(firstCatalog));
+  renderPublicDraftItems();
+});
+
 document.getElementById("btnCustomHero").addEventListener("click", () => openOrderModal(null));
-document.getElementById("btnCustomHeroNav").addEventListener("click", () => openOrderModal(null));
+document.getElementById("btnCustomHeroNav").addEventListener("click", () => openOrderModal(allProducts[0] || null));
 document.getElementById("btnCustomBanner").addEventListener("click", () => openOrderModal(null));
 document.getElementById("closeOrderModal").addEventListener("click", closeModal);
 document.getElementById("cancelOrderModal").addEventListener("click", closeModal);
@@ -228,61 +367,58 @@ orderModal.addEventListener("click", (e) => {
   if (e.target === orderModal) closeModal();
 });
 
-document.getElementById("qtyMinus").addEventListener("click", () => {
-  const current = Math.max(1, Math.floor(Number(orderQty.value) || 1));
-  orderQty.value = String(Math.max(1, current - 1));
-  updateOrderPreview();
-});
-
-document.getElementById("qtyPlus").addEventListener("click", () => {
-  const current = Math.max(1, Math.floor(Number(orderQty.value) || 1));
-  orderQty.value = String(Math.min(500, current + 1));
-  updateOrderPreview();
-});
-
-orderQty.addEventListener("input", updateOrderPreview);
-
 publicOrderForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (hpWebsite.value.trim() !== "") return;
 
-  const product = orderProduct.value.trim();
-  const description = orderDesc.value.trim();
   const client = orderClient.value.trim();
   const contact = orderContact.value.trim();
   const date = orderDate.value.trim();
-  const price = Math.max(0, Number(orderUnitPrice.value) || 0);
-  const quantity = Math.max(1, Math.min(500, Math.round(Number(orderQty.value) || 1)));
+  const notes = orderNotes.value.trim();
 
-  if (!product || !client || !contact) {
-    showToast("Completá el producto, tu nombre y un contacto.", true);
+  const items = draftItems
+    .map((it) => ({
+      product: String(it.product || "").trim().slice(0, 140),
+      description: String(it.description || "").trim().slice(0, 500),
+      price: Math.max(0, Number(it.price) || 0),
+      quantity: Math.max(1, Math.min(500, Math.round(Number(it.quantity) || 1))),
+      catalogId: String(it.catalogId || "").trim().slice(0, 120)
+    }))
+    .filter((it) => it.product.length > 0);
+
+  if (items.length === 0 || !client || !contact) {
+    showToast("Completá los productos, tu nombre y un contacto.", true);
     return;
   }
+
+  const total = calcItemsTotal(items);
 
   submitPublicOrder.disabled = true;
   submitPublicOrder.textContent = "Enviando...";
 
   try {
+    const orderNumber = await allocateNextOrderNumber();
     await addDoc(collection(db, "orders"), {
+      orderNumber,
       date,
-      product,
-      description,
-      status: "Pending",
-      price,
-      quantity,
       client,
       contact,
+      status: "Pending",
+      notes,
+      items,
+      total,
       source: "web",
-      catalogId: orderCatalogId.value.trim(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
 
-    const totalMsg = price > 0 ? ` · Total estimado: ${formatMoney(price * quantity)}` : " · A cotizar";
-    orderSuccessSummary.textContent = `${client}, registramos "${product}" × ${quantity}${totalMsg}. Te vamos a escribir a ${contact} para confirmar detalles.`;
+    const summaryList = items.map((i) => `${i.quantity}× ${i.product}`).join(", ");
+    const totalMsg = total > 0 ? ` · Total estimado: ${formatMoney(total)}` : " · A cotizar";
+    orderSuccessTitle.textContent = `¡Pedido ${formatOrderNumber(orderNumber)} enviado al taller!`;
+    orderSuccessSummary.textContent = `${client}, registramos tu pedido (${summaryList})${totalMsg}. Te escribimos a ${contact} para confirmar detalles.`;
     publicOrderForm.classList.add("hidden");
     orderSuccessView.classList.remove("hidden");
-    showToast("¡Pedido enviado correctamente!");
+    showToast(`¡Pedido ${formatOrderNumber(orderNumber)} enviado!`);
   } catch (err) {
     console.error("Error al enviar pedido:", err);
     showToast("No se pudo enviar el pedido. Revisá tu conexión o intentá de nuevo.", true);
