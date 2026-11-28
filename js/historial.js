@@ -14,8 +14,8 @@ import {
   formatMonthLabel,
   todayISO,
   escapeHtml
-} from "./firebase.js?v=20261126b";
-import { openReceiptModal } from "./receipt.js?v=20261126b";
+} from "./firebase.js?v=20261127";
+import { openReceiptModal } from "./receipt.js?v=20261127";
 import {
   GoogleAuthProvider,
   signInWithPopup,

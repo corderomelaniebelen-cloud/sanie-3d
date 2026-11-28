@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Panel Admin — Sanie 3D</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2318181b'%3E%3Crect width='24' height='24' rx='6'/%3E%3Cpolygon points='12,4 19,8 19,16 12,20 5,16 5,8' fill='none' stroke='%23ffffff' stroke-width='1.8'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="./css/styles.css?v=20261126b" />
+  <link rel="stylesheet" href="./css/styles.css?v=20261127" />
 </head>
 <body>
   <header class="site-header">
@@ -321,8 +321,22 @@
           </div>
 
           <div class="field">
-            <label for="pImageUrl">URL de foto real (opcional)</label>
-            <input id="pImageUrl" class="input" type="url" maxlength="500" placeholder="https://..." />
+            <label for="pImageFile">Imagen del producto (subir PNG / foto desde tu compu)</label>
+            <div id="pImageDropZone" class="img-upload-box">
+              <input id="pImageFile" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+              <div class="img-upload-actions">
+                <button type="button" id="btnPickProductImage" class="btn btn-outline btn-sm">Elegir PNG / imagen de la PC</button>
+                <span style="font-size:0.78rem;color:var(--ink-subtle);">o arrastrá la imagen acá (PNG transparente, JPG o WebP)</span>
+              </div>
+              <div id="pImagePreviewRow" class="img-preview-row hidden">
+                <img id="pImagePreviewImg" class="img-preview-thumb" alt="Vista previa" />
+                <div class="img-preview-meta" id="pImagePreviewMeta">Imagen cargada</div>
+                <button type="button" id="btnClearProductImage" class="btn btn-danger-outline btn-sm">Quitar</button>
+              </div>
+              <div>
+                <input id="pImageUrl" class="input" type="url" maxlength="500" placeholder="O pegá un enlace https://... (opcional)" />
+              </div>
+            </div>
           </div>
 
           <label style="display:flex;align-items:center;gap:8px;font-size:0.88rem;cursor:pointer;">
@@ -341,6 +355,6 @@
 
   <div id="toastContainer" class="toast-container"></div>
 
-  <script type="module" src="./js/admin.js?v=20261126b"></script>
+  <script type="module" src="./js/admin.js?v=20261127"></script>
 </body>
 </html>

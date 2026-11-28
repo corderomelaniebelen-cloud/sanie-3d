@@ -31,7 +31,7 @@ rules_version = '2';
 //   - price: number (int | float, required, 0..10000000)
 //   - leadTimeDays: number (int | float, required, 0..365)
 //   - badge: string (required, 0..40 chars)
-//   - imageUrl: string (required, 0..500 chars)
+//   - imageUrl: string (required, "" | http(s) URL <= 500 chars | base64 png/jpeg/jpg/webp data URL <= 450000 chars)
 //   - iconKey: string (required, 0..40 chars)
 //   - active: bool (required)
 //   - sortOrder: number (int | float, required, 0..100000)
@@ -128,8 +128,11 @@ service cloud.firestore {
     }
 
     function isSafeImageUrl(url) {
-      return isStringInRange(url, 0, 500) &&
-        (url == "" || !url.matches("(?is)^\\s*(javascript|vbscript|data:text/html):.*"));
+      return url is string && (
+        url == "" ||
+        (url.size() <= 500 && url.matches("(?i)^https?://.+")) ||
+        (url.size() <= 450000 && url.matches("^data:image/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$"))
+      );
     }
 
     function isValidOrderDate(dateStr) {

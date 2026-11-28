@@ -467,7 +467,8 @@ textarea {
 .product-media img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: 6px;
 }
 
 .product-media svg {
@@ -1233,6 +1234,53 @@ textarea {
 
 .print-only-area {
   display: none;
+}
+
+/* Product PNG / Image Uploader */
+.img-upload-box {
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.img-upload-box.dragover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.img-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.img-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.img-preview-thumb {
+  width: 68px;
+  height: 48px;
+  border-radius: 6px;
+  background: #fbfaf8;
+  border: 1px solid var(--border);
+  object-fit: contain;
+}
+
+.img-preview-meta {
+  flex: 1;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
 }
 
 @media print {

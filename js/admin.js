@@ -19,9 +19,9 @@ import {
   todayISO,
   addDaysISO,
   escapeHtml
-} from "./firebase.js?v=20261126b";
-import { getProductIllustration } from "./icons.js?v=20261126b";
-import { openReceiptModal } from "./receipt.js?v=20261126b";
+} from "./firebase.js?v=20261127";
+import { getProductIllustration } from "./icons.js?v=20261127";
+import { openReceiptModal } from "./receipt.js?v=20261127";
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -101,12 +101,20 @@ const pBadge = document.getElementById("pBadge");
 const pIconKey = document.getElementById("pIconKey");
 const pSortOrder = document.getElementById("pSortOrder");
 const pImageUrl = document.getElementById("pImageUrl");
+const pImageFile = document.getElementById("pImageFile");
+const pImageDropZone = document.getElementById("pImageDropZone");
+const pImagePreviewRow = document.getElementById("pImagePreviewRow");
+const pImagePreviewImg = document.getElementById("pImagePreviewImg");
+const pImagePreviewMeta = document.getElementById("pImagePreviewMeta");
+const btnPickProductImage = document.getElementById("btnPickProductImage");
+const btnClearProductImage = document.getElementById("btnClearProductImage");
 const pActive = document.getElementById("pActive");
 const saveAdminProductBtn = document.getElementById("saveAdminProductBtn");
 
 let orders = [];
 let catalogItems = [];
 let modalItems = [];
+let uploadedProductImageDataUrl = "";
 let sortByDeliveryDate = false;
 let unsubOrders = null;
 let unsubCatalog = null;
@@ -522,7 +530,7 @@ function buildCatalogPayload(data, isUpdate = false) {
     price: Math.max(0, Number(data.price) || 0),
     leadTimeDays: Math.max(0, Math.round(Number(data.leadTimeDays) || 0)),
     badge: String(data.badge || "").slice(0, 40),
-    imageUrl: String(data.imageUrl || "").slice(0, 500),
+    imageUrl: String(data.imageUrl || "").slice(0, 450000),
     iconKey: String(data.iconKey || "custom").slice(0, 40),
     active: Boolean(data.active),
     sortOrder: Math.max(0, Number(data.sortOrder) || 1),
@@ -650,8 +658,99 @@ function openAdminOrderModal(order = null) {
   fClient.focus();
 }
 
+function updateProductImagePreview(src, label = "") {
+  if (!src) {
+    pImagePreviewRow.classList.add("hidden");
+    pImagePreviewImg.removeAttribute("src");
+    pImagePreviewMeta.textContent = "";
+    return;
+  }
+  pImagePreviewImg.src = src;
+  pImagePreviewMeta.textContent = label || (src.startsWith("data:") ? `Imagen cargada (${Math.round(src.length * 0.75 / 1024)} KB)` : "Imagen por enlace externo");
+  pImagePreviewRow.classList.remove("hidden");
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
+    };
+    img.onerror = (err) => {
+      URL.revokeObjectURL(objectUrl);
+      reject(err);
+    };
+    img.src = objectUrl;
+  });
+}
+
+async function processProductImageFile(file) {
+  const validTypes = ["image/png", "image/jpeg", "image/webp"];
+  if (!validTypes.includes(file.type)) {
+    showToast("Formato no soportado. Elegí un archivo PNG, JPG o WebP.", true);
+    return;
+  }
+
+  const img = await loadImageFromFile(file);
+  const maxSteps = [800, 640, 500, 380];
+  const isPng = file.type === "image/png";
+  const maxChars = 430000;
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  let resultDataUrl = "";
+
+  for (const maxDim of maxSteps) {
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    canvas.width = w;
+    canvas.height = h;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+
+    if (isPng) {
+      const pngUrl = canvas.toDataURL("image/png");
+      if (pngUrl.length <= maxChars) {
+        resultDataUrl = pngUrl;
+        break;
+      }
+    }
+
+    const webpUrl = canvas.toDataURL("image/webp", 0.88);
+    if (webpUrl.length <= maxChars) {
+      resultDataUrl = webpUrl;
+      break;
+    }
+
+    const jpgUrl = canvas.toDataURL("image/jpeg", 0.84);
+    if (jpgUrl.length <= maxChars) {
+      resultDataUrl = jpgUrl;
+      break;
+    }
+  }
+
+  if (!resultDataUrl) {
+    showToast("La imagen es demasiado pesada incluso al optimizarla. Probá con un PNG más liviano.", true);
+    return;
+  }
+
+  uploadedProductImageDataUrl = resultDataUrl;
+  pImageUrl.value = "";
+  updateProductImagePreview(
+    resultDataUrl,
+    `${file.name} · ${canvas.width}×${canvas.height}px (${Math.round(resultDataUrl.length * 0.75 / 1024)} KB)`
+  );
+  showToast("Imagen cargada y lista para guardar");
+}
+
 function openAdminProductModal(item = null) {
   adminProductForm.reset();
+  uploadedProductImageDataUrl = "";
+  pImageFile.value = "";
   if (item) {
     adminProductModalTitle.textContent = "Editar Producto";
     editProductId.value = item.id;
@@ -664,7 +763,15 @@ function openAdminProductModal(item = null) {
     pBadge.value = item.badge || "";
     pIconKey.value = item.iconKey || "custom";
     pSortOrder.value = String(item.sortOrder || 1);
-    pImageUrl.value = item.imageUrl || "";
+    const existingImg = item.imageUrl || "";
+    if (existingImg.startsWith("data:image/")) {
+      uploadedProductImageDataUrl = existingImg;
+      pImageUrl.value = "";
+      updateProductImagePreview(existingImg);
+    } else {
+      pImageUrl.value = existingImg;
+      updateProductImagePreview(existingImg);
+    }
     pActive.checked = item.active !== false;
   } else {
     adminProductModalTitle.textContent = "Nuevo Producto";
@@ -672,6 +779,8 @@ function openAdminProductModal(item = null) {
     pLeadDays.value = "3";
     pMaterial.value = "PLA+";
     pSortOrder.value = String(catalogItems.length + 1);
+    pImageUrl.value = "";
+    updateProductImagePreview("");
     pActive.checked = true;
   }
   adminProductModal.classList.add("open");
@@ -902,6 +1011,47 @@ adminOrderForm.addEventListener("submit", async (e) => {
 });
 
 // Product form events
+btnPickProductImage.addEventListener("click", () => pImageFile.click());
+
+pImageFile.addEventListener("change", () => {
+  const file = pImageFile.files?.[0];
+  if (file) processProductImageFile(file);
+});
+
+pImageDropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  pImageDropZone.classList.add("dragover");
+});
+
+pImageDropZone.addEventListener("dragleave", () => {
+  pImageDropZone.classList.remove("dragover");
+});
+
+pImageDropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  pImageDropZone.classList.remove("dragover");
+  const file = e.dataTransfer?.files?.[0];
+  if (file) processProductImageFile(file);
+});
+
+btnClearProductImage.addEventListener("click", () => {
+  uploadedProductImageDataUrl = "";
+  pImageFile.value = "";
+  pImageUrl.value = "";
+  updateProductImagePreview("");
+});
+
+pImageUrl.addEventListener("input", () => {
+  const urlVal = pImageUrl.value.trim();
+  if (urlVal) {
+    uploadedProductImageDataUrl = "";
+    pImageFile.value = "";
+    updateProductImagePreview(urlVal);
+  } else if (!uploadedProductImageDataUrl) {
+    updateProductImagePreview("");
+  }
+});
+
 document.getElementById("closeAdminProductModal").addEventListener("click", () => adminProductModal.classList.remove("open"));
 document.getElementById("cancelAdminProductModal").addEventListener("click", () => adminProductModal.classList.remove("open"));
 adminProductModal.addEventListener("click", (e) => {
@@ -911,6 +1061,7 @@ adminProductModal.addEventListener("click", (e) => {
 adminProductForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const id = editProductId.value;
+  const finalImageUrl = uploadedProductImageDataUrl || pImageUrl.value.trim();
   const payloadInput = {
     name: pName.value.trim(),
     category: pCategory.value.trim(),
@@ -919,7 +1070,7 @@ adminProductForm.addEventListener("submit", async (e) => {
     leadTimeDays: Number(pLeadDays.value) || 0,
     material: pMaterial.value.trim(),
     badge: pBadge.value.trim(),
-    imageUrl: pImageUrl.value.trim(),
+    imageUrl: finalImageUrl,
     iconKey: pIconKey.value,
     sortOrder: Number(pSortOrder.value) || 1,
     active: pActive.checked

@@ -8,7 +8,7 @@ import {
   calcOrderUnits,
   parseISODateLocal,
   escapeHtml
-} from "./firebase.js?v=20261126b";
+} from "./firebase.js?v=20261127";
 
 let modalReady = false;
 let currentOrder = null;
